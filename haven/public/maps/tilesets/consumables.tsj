@@ -1,0 +1,14 @@
+{ "columns":44,
+ "image":"consumables.png",
+ "imageheight":272,
+ "imagewidth":704,
+ "margin":0,
+ "name":"consumables",
+ "spacing":0,
+ "tilecount":748,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

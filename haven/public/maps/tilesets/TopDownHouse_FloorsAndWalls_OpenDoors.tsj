@@ -1,0 +1,14 @@
+{ "columns":8,
+ "image":"TopDownHouse_FloorsAndWalls_OpenDoors.png",
+ "imageheight":48,
+ "imagewidth":128,
+ "margin":0,
+ "name":"TopDownHouse_FloorsAndWalls_OpenDoors",
+ "spacing":0,
+ "tilecount":24,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

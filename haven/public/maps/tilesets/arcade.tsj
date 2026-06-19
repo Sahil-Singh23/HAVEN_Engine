@@ -1,0 +1,14 @@
+{ "columns":17,
+ "image":"arcade.png",
+ "imageheight":336,
+ "imagewidth":272,
+ "margin":0,
+ "name":"arcade",
+ "spacing":0,
+ "tilecount":357,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

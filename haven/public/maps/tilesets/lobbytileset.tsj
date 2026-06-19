@@ -1,0 +1,14 @@
+{ "columns":13,
+ "image":"lobbytileset.png",
+ "imageheight":288,
+ "imagewidth":208,
+ "margin":0,
+ "name":"lobbytileset",
+ "spacing":0,
+ "tilecount":234,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

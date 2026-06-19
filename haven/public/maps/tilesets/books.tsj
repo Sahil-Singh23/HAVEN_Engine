@@ -1,0 +1,14 @@
+{ "columns":14,
+ "image":"books.png",
+ "imageheight":192,
+ "imagewidth":224,
+ "margin":0,
+ "name":"books",
+ "spacing":0,
+ "tilecount":168,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

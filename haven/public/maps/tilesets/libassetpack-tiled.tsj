@@ -1,0 +1,14 @@
+{ "columns":93,
+ "image":"libassetpack-tiled.png",
+ "imageheight":528,
+ "imagewidth":1488,
+ "margin":0,
+ "name":"libassetpack-tiled",
+ "spacing":0,
+ "tilecount":3069,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

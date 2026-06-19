@@ -1,0 +1,14 @@
+{ "columns":17,
+ "image":"Room_Builder_free_16x16.png",
+ "imageheight":368,
+ "imagewidth":272,
+ "margin":0,
+ "name":"Room_Builder_free_16x16",
+ "spacing":0,
+ "tilecount":391,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

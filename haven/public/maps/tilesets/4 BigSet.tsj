@@ -1,0 +1,14 @@
+{ "columns":8,
+ "image":"4 BigSet.png",
+ "imageheight":432,
+ "imagewidth":128,
+ "margin":0,
+ "name":"4 BigSet",
+ "spacing":0,
+ "tilecount":216,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

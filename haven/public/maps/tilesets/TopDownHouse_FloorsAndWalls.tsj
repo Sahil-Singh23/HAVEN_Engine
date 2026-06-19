@@ -1,0 +1,14 @@
+{ "columns":18,
+ "image":"TopDownHouse_FloorsAndWalls.png",
+ "imageheight":144,
+ "imagewidth":288,
+ "margin":0,
+ "name":"TopDownHouse_FloorsAndWalls",
+ "spacing":0,
+ "tilecount":162,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

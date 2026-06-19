@@ -1,0 +1,14 @@
+{ "columns":7,
+ "image":"Living Room.png",
+ "imageheight":112,
+ "imagewidth":112,
+ "margin":0,
+ "name":"Living Room",
+ "spacing":0,
+ "tilecount":49,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

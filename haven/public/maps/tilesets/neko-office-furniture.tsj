@@ -1,0 +1,14 @@
+{ "columns":10,
+ "image":"neko-office-furniture.png",
+ "imageheight":144,
+ "imagewidth":160,
+ "margin":0,
+ "name":"neko-office-furniture",
+ "spacing":0,
+ "tilecount":90,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

@@ -1,0 +1,14 @@
+{ "columns":19,
+ "image":"cafe_arcadeassets.png",
+ "imageheight":202,
+ "imagewidth":304,
+ "margin":0,
+ "name":"cafe_arcadeassets",
+ "spacing":0,
+ "tilecount":228,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

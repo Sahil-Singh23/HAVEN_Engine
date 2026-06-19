@@ -1,0 +1,14 @@
+{ "columns":56,
+ "image":"allnew.png",
+ "imageheight":512,
+ "imagewidth":896,
+ "margin":0,
+ "name":"allnew",
+ "spacing":0,
+ "tilecount":1792,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}

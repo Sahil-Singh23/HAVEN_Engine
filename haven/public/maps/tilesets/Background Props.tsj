@@ -1,0 +1,14 @@
+{ "columns":13,
+ "image":"Background Props.png",
+ "imageheight":208,
+ "imagewidth":208,
+ "margin":0,
+ "name":"Background Props",
+ "spacing":0,
+ "tilecount":169,
+ "tiledversion":"1.11.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10"
+}
