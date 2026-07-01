@@ -37,11 +37,17 @@ export function updateCamera(
   targetX: number,
   targetY: number,
   dt: number,
-  smoothing: number = 5
+  smoothing: number = 5,
+  snap: boolean = false
 ): void {
   const targetCamX = targetX - (camera.width / camera.zoom) / 2;
   const targetCamY = targetY - (camera.height / camera.zoom) / 2;
   
-  camera.x += (targetCamX - camera.x) * smoothing * dt;
-  camera.y += (targetCamY - camera.y) * smoothing * dt;
+  if (snap) {
+    camera.x = targetCamX;
+    camera.y = targetCamY;
+  } else {
+    camera.x += (targetCamX - camera.x) * smoothing * dt;
+    camera.y += (targetCamY - camera.y) * smoothing * dt;
+  }
 }

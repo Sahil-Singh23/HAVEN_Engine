@@ -17,8 +17,6 @@ async function main() {
   function resize() {
     canvas.width = window.innerWidth * dpr;
     canvas.height = window.innerHeight * dpr;
-    canvas.style.width = window.innerWidth + 'px';
-    canvas.style.height = window.innerHeight + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   resize();
@@ -49,7 +47,7 @@ async function main() {
   );
   const spawn = objectsLayer?.objects.find(o => o.name === 'spawn');
   
-  const player = createPlayer(spawn?.x ?? 100, spawn?.y ?? 100);
+  const player = createPlayer(spawn?.x ?? 265, spawn?.y ?? 510);
   const camera = createCamera(window.innerWidth, window.innerHeight);
 
   // Input
@@ -59,16 +57,42 @@ async function main() {
 
   // Game loop
   let lastTime = 0;
+  let spawnTime = 0;
 
   function loop(timestamp: number) {
+    if (spawnTime === 0) {
+      spawnTime = timestamp;
+    }
     const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
     lastTime = timestamp;
 
-    // Update
-    updatePlayer(player, keys, collisionGrid, dt);
-    updateCamera(camera, player.x + player.width / 2, player.y + player.height / 2, dt);
+    // Ensure canvas dimensions are in sync with window size
+    if (
+      canvas.width !== window.innerWidth * dpr ||
+      canvas.height !== window.innerHeight * dpr
+    ) {
+      resize();
+    }
+
+    // Update camera dimensions to match viewport before updating camera position
     camera.width = window.innerWidth;
     camera.height = window.innerHeight;
+
+    // Update
+    updatePlayer(player, keys, collisionGrid, dt);
+
+    // Snap camera for the first 1000ms to allow mobile viewports to stabilize
+    const elapsedSinceSpawn = timestamp - spawnTime;
+    const shouldSnap = elapsedSinceSpawn < 1000;
+
+    updateCamera(
+      camera,
+      player.x + player.width / 2,
+      player.y + player.height / 2,
+      dt,
+      5,
+      shouldSnap
+    );
 
     // Render
     ctx.clearRect(0, 0, canvas.width, canvas.height);
