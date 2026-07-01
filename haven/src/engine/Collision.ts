@@ -50,5 +50,6 @@ export function isSolid(grid: CollisionGrid, worldX: number, worldY: number): bo
   const ty = Math.floor(worldY / grid.tileSize);
 
   if (tx < 0 || tx >= grid.width || ty < 0 || ty >= grid.height) return true;
+  //return false; disable collion
   return grid.grid[ty][tx];
 }

@@ -17,7 +17,7 @@ export function createPlayer(x: number, y: number): Player {
     width: 12,
     height: 12,
     speed: 96, // 6 tiles per second (96px / 16px per tile)
-    color: '#ff4444',
+    color: '#005eea',
   };
 }
 
