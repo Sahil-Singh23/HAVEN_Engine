@@ -10,6 +10,7 @@ import { createLocalEntity, createRemoteEntity } from './entities/Entity';
 import { updateLocalEntity } from './entities/LocalController';
 import { renderEntities } from './entities/EntityRenderer';
 import { NetworkClient } from './network/NetworkClient';
+import { initTouchInput } from './input/TouchInput';
 
 async function main() {
   const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -46,6 +47,8 @@ async function main() {
   const keys = new Set<string>();
   window.addEventListener('keydown', e => keys.add(e.key.toLowerCase()));
   window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+  
+  const getTouchKeys = initTouchInput();
 
   network.onInit((id, serverPlayers) => {
     localId = id;
@@ -89,7 +92,8 @@ async function main() {
     }
   });
 
-  network.connect('ws://localhost:3001');
+  network.connect('ws://192.168.29.71:3001');
+  // http://192.168.29.71:5173/
 
   let lastTime = 0;
   
@@ -97,9 +101,13 @@ async function main() {
     const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
     lastTime = timestamp;
 
+    // Combine keyboard and touch inputs
+    const touchKeys = getTouchKeys();
+    const allKeys = new Set([...keys, ...touchKeys]);
+
     // Send inputs to the server
     if (localId) {
-      network.sendInput(Array.from(keys), dt);
+      network.sendInput(Array.from(allKeys), dt);
     }
 
     // Update and render
@@ -107,7 +115,7 @@ async function main() {
     if (local) {
       // We still run local movement for camera smoothness.
       // The server state will ultimately override this position.
-      updateLocalEntity(local, keys, collisionGrid, dt);
+      updateLocalEntity(local, allKeys, collisionGrid, dt);
       
       updateCamera(
         camera,
