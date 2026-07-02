@@ -8,14 +8,14 @@ import { buildCollisionGrid } from './engine/Collision';
 import { EntityManager } from './entities/EntityManager';
 import { createLocalEntity, createRemoteEntity } from './entities/Entity';
 import { updateLocalEntity } from './entities/LocalController';
-import { updateRemoteEntity } from './entities/RemoteController';
 import { renderEntities } from './entities/EntityRenderer';
+import { NetworkClient } from './network/NetworkClient';
+import { initTouchInput } from './input/TouchInput';
 
 async function main() {
   const canvas = document.getElementById('game') as HTMLCanvasElement;
   const ctx = canvas.getContext('2d')!;
   
-  // Handle resize and device pixel ratio
   const dpr = window.devicePixelRatio || 1;
   
   function resize() {
@@ -26,99 +26,113 @@ async function main() {
   resize();
   window.addEventListener('resize', resize);
 
-  // Load map and tilesets
   const map = await loadMap('/maps/final_map.tmj');
-  console.log('Map loaded:', map.width, 'x', map.height);
-  console.log('Layers:', map.layers.map(l => l.name));
-  console.log('Tilesets:', map.tilesets.map(t => t.source));
-
   const tilesets: LoadedTileset[] = [];
   for (const ts of map.tilesets) {
-    if (!ts.source) continue; // Skip tilesets without a source
+    if (!ts.source) continue;
     const loaded = await loadTileset(ts.source, '/maps/');
-    loaded.firstgid = ts.firstgid; // Set the map-specific firstgid on the loaded tileset
+    loaded.firstgid = ts.firstgid;
     tilesets.push(loaded);
-    console.log('Loaded tileset:', loaded.name, 'with firstgid:', loaded.firstgid);
   }
 
-  // Build systems
   const renderer = new MapRenderer(map, tilesets);
   const collisionGrid = buildCollisionGrid(map);
-
-  // Set up Entity Manager
-  const entityManager = new EntityManager();
-
-  // Find spawn point
-  const objectsLayer = map.layers.find(
-    (l): l is ObjectLayer => l.type === 'objectgroup' && l.name === 'objects'
-  );
-  const spawn = objectsLayer?.objects.find(o => o.name === 'spawn');
-  
-  // Create and add the local player entity
-  const localPlayer = createLocalEntity(spawn?.x ?? 265, spawn?.y ?? 510);
-  entityManager.add(localPlayer);
-
-  // TEST: Spawn a fake remote player to verify Y-sort depth ordering and rendering
-  const fakeRemote = createRemoteEntity('fake-player-1', (spawn?.x ?? 265) + 32, (spawn?.y ?? 510) + 16);
-  entityManager.add(fakeRemote);
-
   const camera = createCamera(window.innerWidth, window.innerHeight);
 
-  // Input
+  const entityManager = new EntityManager();
+  const network = new NetworkClient();
+
+  let localId: string | null = null;
+
   const keys = new Set<string>();
   window.addEventListener('keydown', e => keys.add(e.key.toLowerCase()));
   window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+  
+  const getTouchKeys = initTouchInput();
 
-  // Game loop
-  let lastTime = 0;
-  let spawnTime = 0;
+  network.onInit((id, serverPlayers) => {
+    localId = id;
+    console.log(`Assigned local ID: ${id}`);
 
-  function loop(timestamp: number) {
-    if (spawnTime === 0) {
-      spawnTime = timestamp;
+    for (const [pid, pos] of Object.entries(serverPlayers)) {
+      const isLocal = pid === id;
+      const entity = isLocal
+        ? createLocalEntity(pos.x, pos.y)
+        : createRemoteEntity(pid, pos.x, pos.y);
+      entity.id = pid; // Override generated ID with server-authoritative ID
+      entityManager.add(entity);
     }
+  });
+
+  network.onState((msg) => {
+    const serverIds = new Set<string>();
+    for (const [pid, pos] of Object.entries(msg.players)) {
+      serverIds.add(pid);
+      const entity = entityManager.get(pid);
+      
+      if (entity) {
+        if (entity.type !== 'local') { // Naive state sync for remotes
+          entity.position.x = pos.x;
+          entity.position.y = pos.y;
+        }
+      } else {
+        // New player joined
+        console.log('New player joined:', pid);
+        const remote = createRemoteEntity(pid, pos.x, pos.y);
+        entityManager.add(remote);
+      }
+    }
+    
+    // Remove disconnected players
+    for (const entity of entityManager.getAll()) {
+      if (!serverIds.has(entity.id)) {
+        console.log('Player left:', entity.id);
+        entityManager.remove(entity.id);
+      }
+    }
+  });
+
+  network.connect('ws://192.168.29.71:3001');
+  // http://192.168.29.71:5173/
+
+  let lastTime = 0;
+  
+  function loop(timestamp: number) {
     const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
     lastTime = timestamp;
 
-    // Ensure canvas dimensions are in sync with window size
-    if (
-      canvas.width !== window.innerWidth * dpr ||
-      canvas.height !== window.innerHeight * dpr
-    ) {
-      resize();
+    // Combine keyboard and touch inputs
+    const touchKeys = getTouchKeys();
+    const allKeys = new Set([...keys, ...touchKeys]);
+
+    // Send inputs to the server
+    if (localId) {
+      network.sendInput(Array.from(allKeys), dt);
     }
 
-    // Update camera dimensions to match viewport before updating camera position
-    camera.width = window.innerWidth;
-    camera.height = window.innerHeight;
-
-    // Update all entities
-    for (const entity of entityManager.getAll()) {
-      if (entity.type === 'local') {
-        updateLocalEntity(entity, keys, collisionGrid, dt);
-      } else {
-        updateRemoteEntity(entity, dt);
-      }
-    }
-
-    // Camera follows local player
+    // Update and render
     const local = entityManager.getLocal();
     if (local) {
-      // Snap camera for the first 1000ms to allow mobile viewports to stabilize
-      const elapsedSinceSpawn = timestamp - spawnTime;
-      const shouldSnap = elapsedSinceSpawn < 1000;
-
+      // We still run local movement for camera smoothness.
+      // The server state will ultimately override this position.
+      updateLocalEntity(local, allKeys, collisionGrid, dt);
+      
       updateCamera(
         camera,
         local.position.x + local.size.width / 2,
         local.position.y + local.size.height / 2,
         dt,
         5,
-        shouldSnap
+        false // Snapping is no longer needed with server-driven state
       );
     }
+    
+    if (canvas.width !== window.innerWidth * dpr || canvas.height !== window.innerHeight * dpr) {
+      resize();
+    }
+    camera.width = window.innerWidth;
+    camera.height = window.innerHeight;
 
-    // Render
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     renderer.renderBackground(ctx, camera);
     renderEntities(ctx, entityManager.getAll(), camera);
