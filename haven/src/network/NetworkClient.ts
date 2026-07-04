@@ -38,13 +38,14 @@ export class NetworkClient {
     };
   }
 
-  sendInput(keys: string[], dt: number): void {
+  sendInput(keys: string[], dt: number, sequence: number): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     
     const msg: ClientMessage = {
       type: 'input',
       keys,
       dt,
+      sequence,
     };
     
     this.ws.send(JSON.stringify(msg));

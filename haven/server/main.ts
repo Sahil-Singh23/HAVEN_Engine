@@ -1,49 +1,112 @@
 import { WebSocketServer, WebSocket } from 'ws';
+import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-// Shared types (will be moved to a shared file)
+// ESM-safe equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// #region Shared Types
 interface PlayerInput {
   keys: string[];
   dt: number;
+  sequence: number;
 }
 
 interface PlayerState {
   x: number;
   y: number;
+  sequence: number;
 }
 
 interface GameState {
   players: Map<string, PlayerState>;
 }
+// #endregion
 
+// #region Server Configuration
 const PORT = 3001;
-const TICK_RATE = 20; // 20 updates per second = 50ms interval
+const TICK_RATE = 20; // 20 updates per second
+// #endregion
 
-// In a real implementation, you would load the map data here
-// to build a server-side collision grid. For now, we will
-// proceed without server-side collision to keep it simple.
-// const collisionGrid = buildCollisionGrid(mapData);
+// #region Collision Handling
+interface CollisionGrid {
+  width: number;
+  height: number;
+  tileSize: number;
+  grid: boolean[][];
+}
+
+
+//this is just returning a collsion grid by extracting from map n converting to boolean
+function loadCollisionGrid(): CollisionGrid {
+  // Resolve path from the compiled JS file in `dist`
+  const mapPath = resolve(__dirname, '../../public/maps/final_map.tmj');
+  const mapData = JSON.parse(readFileSync(mapPath, 'utf-8'));
+  
+  const collisionLayer = mapData.layers.find(
+    (l: any) => l.type === 'tilelayer' && l.name.toLowerCase() === 'collision'
+  );
+  
+  if (!collisionLayer) throw new Error('Server error: No collision layer found in map file.');
+  
+  const grid: boolean[][] = [];
+  const FLIPPED_FLAGS = 0x80000000 | 0x40000000 | 0x20000000;
+  
+  for (let y = 0; y < collisionLayer.height; y++) {
+    grid[y] = [];
+    for (let x = 0; x < collisionLayer.width; x++) {
+      const gid = collisionLayer.data[y * collisionLayer.width + x];
+      grid[y][x] = (gid & ~FLIPPED_FLAGS) !== 0;
+    }
+  }
+  
+  return {
+    width: collisionLayer.width,
+    height: collisionLayer.height,
+    tileSize: mapData.tilewidth,
+    grid
+  };
+}
+
+//the collison gird is now loaded 
+const collisionGrid = loadCollisionGrid();
+
+//this is actual function which check if a given world pos x,y is collison or not
+function isSolidServer(x: number, y: number): boolean {
+  const tx = Math.floor(x / collisionGrid.tileSize);
+  const ty = Math.floor(y / collisionGrid.tileSize);
+  
+  if (tx < 0 || tx >= collisionGrid.width || ty < 0 || ty >= collisionGrid.height) {
+    return true; // Out of bounds is solid
+  }
+  
+  return collisionGrid.grid[ty]?.[tx] ?? false;
+}
+// #endregion
 
 const state: GameState = {
   players: new Map(),
 };
 
 const clients = new Map<string, WebSocket>();
-
-function isSolid(x: number, y: number): boolean {
-  // Server-side collision check would go here.
-  // For now, we allow all movement.
-  void x;
-  void y;
-  return false;
-}
+const  lastInputTime = new Map<string, number>();
 
 function updatePlayer(id: string, input: PlayerInput): void {
+  const now = Date.now();
+  const last = lastInputTime.get(id) || 0;
+  
+  // Rate limit to max 60 inputs/sec (16ms interval)
+  if (now - last < 16) return;
+  lastInputTime.set(id, now);
+
   const player = state.players.get(id);
   if (!player) return;
 
-  const SPEED = 96; // 6 tiles per second (96px / 16px per tile)
-  let dx = 0;
-  let dy = 0;
+  const SPEED = 96; //speed of pixels per second 
+  const PLAYER_SIZE = { width: 12, height: 12 };
+  let dx = 0, dy = 0;
 
   for (const key of input.keys) {
     if (key === 'w' || key === 'arrowup') dy -= 1;
@@ -58,28 +121,41 @@ function updatePlayer(id: string, input: PlayerInput): void {
     dy /= len;
   }
 
-  const newX = player.x + dx * SPEED * input.dt;
+  const newX = player.x + dx * SPEED * input.dt; // basically distace = speed* time , we add to old postion it will be + or - based on the dx , 
   const newY = player.y + dy * SPEED * input.dt;
+  // dx, dy = direction
+  // SPEED = movement per second
+  // dt = time since last frame
+  // SPEED × dt = distance traveled this frame
+  // formula ensures FPS-independent movement
 
-  // We check for collisions before updating the player's state.
-  // This simple check only validates the center point of the player.
-  if (!isSolid(newX + 6, newY + 6)) {
+  // Perform server-side collision check, mirroring the client's 4-corner logic
+  if (
+    !isSolidServer(newX, player.y) &&
+    !isSolidServer(newX + PLAYER_SIZE.width, player.y) &&
+    !isSolidServer(newX, player.y + PLAYER_SIZE.height) &&
+    !isSolidServer(newX + PLAYER_SIZE.width, player.y + PLAYER_SIZE.height)
+  ) {
     player.x = newX;
+  }
+
+  if (
+    !isSolidServer(player.x, newY) &&
+    !isSolidServer(player.x + PLAYER_SIZE.width, newY) &&
+    !isSolidServer(player.x, newY + PLAYER_SIZE.height) &&
+    !isSolidServer(player.x + PLAYER_SIZE.width, newY + PLAYER_SIZE.height)
+  ) {
     player.y = newY;
   }
+  
+  player.sequence = input.sequence;
 }
 
-
 function broadcastState(): void {
-  const snapshot: Record<string, PlayerState> = {};
-  for (const [id, pos] of state.players) {
-    snapshot[id] = { x: pos.x, y: pos.y };
-  }
-
   const message = JSON.stringify({
     type: 'state',
     tick: Date.now(),
-    players: snapshot,
+    players: Object.fromEntries(state.players),
   });
 
   for (const ws of clients.values()) {
@@ -95,11 +171,10 @@ wss.on('connection', (ws) => {
   const id = `player-${Math.random().toString(36).slice(2, 9)}`;
   console.log('Player connected:', id);
 
-  // Spawn at a default position
-  state.players.set(id, { x: 265, y: 510 });
+  state.players.set(id, { x: 265, y: 510, sequence: -1 });
   clients.set(id, ws);
+  lastInputTime.set(id, Date.now());
 
-  // Send the new player their ID and the current game state
   ws.send(JSON.stringify({
     type: 'init',
     yourId: id,
@@ -112,7 +187,8 @@ wss.on('connection', (ws) => {
       if (msg.type === 'input') {
         updatePlayer(id, {
           keys: msg.keys || [],
-          dt: msg.dt || 1 / TICK_RATE, // Use a fixed tick if dt is not provided
+          dt: msg.dt || 1 / TICK_RATE,
+          sequence: msg.sequence,
         });
       }
     } catch (err) {
@@ -124,16 +200,12 @@ wss.on('connection', (ws) => {
     console.log('Player disconnected:', id);
     state.players.delete(id);
     clients.delete(id);
-    
-    // Notify remaining players about the disconnection
+    lastInputTime.delete(id);
     broadcastState();
   });
 });
 
-// Server-side game loop
 setInterval(() => {
-  // For this phase, inputs are processed as they arrive.
-  // In a more advanced model, you might queue inputs and process them here.
   broadcastState();
 }, 1000 / TICK_RATE);
 
