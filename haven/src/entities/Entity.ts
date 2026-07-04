@@ -1,3 +1,5 @@
+import { InterpolationBuffer } from '../network/InterpolationBuffer';
+
 export interface Position {
   x: number;
   y: number;
@@ -27,17 +29,12 @@ export interface Entity {
 // Local player: you control this, needs prediction state
 export interface LocalEntity extends Entity {
   type: 'local';
-  // Future: input history for reconciliation
-  // inputHistory: InputState[];
-  // Future: last server-confirmed position
-  // lastServerPosition: Position;
 }
 
 // Remote player: someone else, server tells you where they are
 export interface RemoteEntity extends Entity {
   type: 'remote';
-  // Future: buffer of past states for interpolation
-  // stateBuffer: Array<{ timestamp: number; position: Position }>;
+  interpolationBuffer: InterpolationBuffer;
 }
 
 export type AnyEntity = LocalEntity | RemoteEntity;
@@ -50,9 +47,9 @@ export function createLocalEntity(x: number, y: number): LocalEntity {
     type: 'local',
     position: { x, y },
     velocity: { x: 0, y: 0 },
-    size: { width: 12, height: 12 }, // Match the previous player size
-    color: '#510505', // Keep original blue color
-    speed: 96, // 6 tiles per second (96px / 16px per tile)
+    size: { width: 12, height: 12 },
+    color: '#510505',
+    speed: 96, // 96 pixels per second, or 6 tiles per sec of 16 px per tile
   };
 }
 
@@ -63,7 +60,9 @@ export function createRemoteEntity(id: string, x: number, y: number): RemoteEnti
     position: { x, y },
     velocity: { x: 0, y: 0 },
     size: { width: 12, height: 12 },
-    color: '#ff4444', // Red color for remote players to differentiate
+    color: '#ff4444',
     speed: 96,
+    interpolationBuffer: new InterpolationBuffer(),
   };
 }
+
