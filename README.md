@@ -121,8 +121,6 @@ To scale beyond a single Node.js process limit, HAVEN Engine supports multi-node
   * Horizontal clustering of server nodes, NGINX WebSockets load-balancing, Redis-backed sessions, and Pub/Sub synchronization.
 - [ ] **Phase 7: Voice/Video Chat (Next Up)**
   * Selective WebRTC mesh networks. Direct audio/video peer connections established dynamically based on spatial 2D proximity (dynamic peer connection mesh for nearby players only).
-- [ ] **Phase 8: Production Launch**
-  * Production cloud deployment, monitoring, resource usage charts, and demonstrative trailer.
 
 ---
 
@@ -153,7 +151,7 @@ HAVEN_Engine/
 
 ---
 
-## 🧑‍🏫 Engineering & Contribution Principles
+## 🧑Engineering & Contribution Principles
 
 * **Composition Over Deep Inheritance:** The entity system avoids nested class hierarchies (e.g. `Player extends Character extends Entity`). We favor a clean composition of modular controllers (`LocalController`, `RemoteController`) attached to a generic base `Entity`.
 * **Pragmatic Simplicity:** Prioritize readable, trace-friendly code over premature abstractions. High performance is maintained without resorting to unsafe, un-typed workarounds or hidden runtime magic.
