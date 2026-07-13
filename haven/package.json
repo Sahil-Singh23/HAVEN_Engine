@@ -5,14 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p server/tsconfig.json && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start:server": "tsc -p server/tsconfig.json && node server/dist/main.js"
+    "start": "node server/dist/server/main.js",
+    "start:server": "tsc -p server/tsconfig.json && node server/dist/server/main.js"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.3.2",
+    "lucide-react": "^1.24.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "tailwindcss": "^4.3.2",
     "ws": "^8.21.0"
   },
   "devDependencies": {
@@ -26,6 +30,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "prettier": "^3.9.5",
+    "prettier-plugin-tailwindcss": "^0.8.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12"

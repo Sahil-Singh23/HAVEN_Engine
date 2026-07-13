@@ -4,7 +4,8 @@ import type { Camera } from '../engine/Camera';
 export function renderEntities(
   ctx: CanvasRenderingContext2D,
   entities: AnyEntity[],
-  camera: Camera
+  camera: Camera,
+  names?: Map<string, string>
 ): void {
   // Sort by Y position so lower entities draw on top (pseudo-3D Y-sort depth-ordering)
   const sorted = [...entities].sort((a, b) => {
@@ -27,6 +28,24 @@ export function renderEntities(
       entity.size.width,
       entity.size.height
     );
+
+    // Draw player name above entity
+    const label = names?.get(entity.id) || entity.id.slice(0, 6);
+    const centerX = entity.position.x + entity.size.width / 2;
+    const labelY = entity.position.y - 4;
+
+    ctx.font = 'bold 5px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+
+    // Dark outline for readability on any background
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeText(label, centerX, labelY);
+
+    // White fill
+    ctx.fillStyle = 'rgba(248, 246, 229, 1)';
+    ctx.fillText(label, centerX, labelY);
   }
 
   ctx.restore();
