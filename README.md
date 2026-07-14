@@ -151,7 +151,7 @@ HAVEN_Engine/
 
 ---
 
-## 🧑Engineering & Contribution Principles
+## Engineering & Contribution Principles
 
 * **Composition Over Deep Inheritance:** The entity system avoids nested class hierarchies (e.g. `Player extends Character extends Entity`). We favor a clean composition of modular controllers (`LocalController`, `RemoteController`) attached to a generic base `Entity`.
 * **Pragmatic Simplicity:** Prioritize readable, trace-friendly code over premature abstractions. High performance is maintained without resorting to unsafe, un-typed workarounds or hidden runtime magic.
