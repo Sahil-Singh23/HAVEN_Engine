@@ -1,9 +1,10 @@
 // server/main.ts
 
+import 'dotenv/config';
 import { WebSocketServer, WebSocket } from 'ws';
 import { InstanceManager } from './InstanceManager.js';
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5010;
 const TICK_RATE = 20;
 
 //create the object of the instance manager 

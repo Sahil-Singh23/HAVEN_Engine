@@ -12,6 +12,10 @@ The client architecture is designed to make the game *feel* responsive, even wit
     *   **`entities: Map<string, AnyEntity>`**: Inside the manager, this maps a `playerId` (provided by the server) to its corresponding `LocalEntity` or `RemoteEntity` object. This is the source of truth for the rendering engine.
 
 2.  **`network: NetworkClient`**: This class abstracts all WebSocket communication. It is responsible for connecting to the server, sending client inputs, and receiving server state updates through a clean callback interface (`onInit`, `onState`).
+    *   **Dynamic Connection Engine (`getWsUrl`)**: The target server URL is resolved dynamically at runtime:
+        *   **Environment Override:** Looks for `import.meta.env.VITE_WS_URL` (configured during droplet or container build phase).
+        *   **Local Development Fallback:** If accessed via `localhost` or `127.0.0.1`, it resolves to `ws://localhost:3001` (or local `.env` specified ports).
+        *   **Production Host Auto-Discovery:** On a deployed server, it discovers the active hostname (`window.location.host`) and automatically elevates the connection protocol to **Secure WebSockets (`wss://`)** if the parent page is loaded via HTTPS to prevent browser-level secure content blocking.
 
 3.  **`predictionBuffer: PredictionBuffer`**: This is a crucial component for the **local player only**.
     *   It stores a queue of `InputFrame` objects, where each frame contains the input keys, delta time, and the sequence number sent to the server.
