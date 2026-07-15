@@ -47,11 +47,55 @@ function GameApp() {
   const [chatMode, setChatMode] = useState<ChatMode>('global');
   const [uiTick, setUiTick] = useState(0);
   
+  // Asset preloading states
+  const [preloadedMap, setPreloadedMap] = useState<any>(null);
+  const [preloadedTilesets, setPreloadedTilesets] = useState<any[]>([]);
+  const [isAssetsLoaded, setIsAssetsLoaded] = useState(false);
+  const [isNetworkInit, setIsNetworkInit] = useState(false);
+
   const gameStateRef = useRef(new GameState());
   const networkRef = useRef(new NetworkClient());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const pendingCodeRef = useRef(pendingJoinCode);
+
+  // Preload map assets as soon as we enter 'loading' state
+  useEffect(() => {
+    if (screen === 'loading') {
+      setIsAssetsLoaded(false);
+      let active = true;
+      const preload = async () => {
+        try {
+          const map = await loadMap('/maps/final_map.tmj');
+          const tilesets = [];
+          for (const ts of map.tilesets) {
+            if (!ts.source) continue;
+            const loaded = await loadTileset(ts.source, '/maps/');
+            (loaded as any).firstgid = ts.firstgid;
+            tilesets.push(loaded);
+          }
+          if (active) {
+            setPreloadedMap(map);
+            setPreloadedTilesets(tilesets);
+            setIsAssetsLoaded(true);
+          }
+        } catch (err) {
+          console.error("Failed to preload map assets:", err);
+        }
+      };
+      preload();
+      return () => {
+        active = false;
+      };
+    }
+  }, [screen]);
+
+  // Coordinate transition to 'game' when both network and assets are ready
+  useEffect(() => {
+    if (isAssetsLoaded && isNetworkInit) {
+      setScreen('game');
+    }
+  }, [isAssetsLoaded, isNetworkInit]);
 
   // Start game loop when entering game screen
   useEffect(() => {
@@ -114,29 +158,6 @@ function GameApp() {
 
     // Network handlers
     const setupNetwork = () => {
-      // Temporary debug handlers
-      network.on('instanceCreated', (msg) => {
-        console.log('✅ instanceCreated:', msg.code);
-      });
-
-      network.on('joinFailed', (msg) => {
-        console.log('❌ joinFailed:', msg.reason);
-      });
-
-      network.on('init', (msg) => {
-        console.log('✅ init:', {
-          yourId: msg.yourId,
-          code: msg.code,
-          playerCount: Object.keys(msg.players).length,
-          zoneCount: msg.zones.length,
-          chatCount: msg.chatHistory.length
-        });
-      });
-
-      network.on('state', (msg) => {
-        console.log('✅ state tick:', msg.tick, 'players:', Object.keys(msg.players).length);
-      });
-
       network.on('init', (msg) => {
         gameState.setLocalId(msg.yourId);
         gameState.setInstanceCode(msg.code);
@@ -320,15 +341,8 @@ function GameApp() {
     // Initialize
     const init = async () => {
       try {
-        const map = await loadMap('/maps/final_map.tmj');
-        const tilesets = [];
-        
-        for (const ts of map.tilesets) {
-          if (!ts.source) continue;
-          const loaded = await loadTileset(ts.source, '/maps/');
-          (loaded as any).firstgid = ts.firstgid;
-          tilesets.push(loaded);
-        }
+        const map = preloadedMap;
+        const tilesets = preloadedTilesets;
 
         renderer = new MapRenderer(map, tilesets);
         collisionGrid = buildCollisionGrid(map);
@@ -381,7 +395,7 @@ function GameApp() {
     });
 
     network.on('init', () => {
-      setScreen('game');
+      setIsNetworkInit(true);
     });
 
     network.onOpen(() => {
@@ -394,7 +408,7 @@ function GameApp() {
     network.connect(getWsUrl());
 
     network.on('init', () => {
-      setScreen('game');
+      setIsNetworkInit(true);
     });
 
     network.on('joinFailed', (msg) => {
@@ -422,6 +436,10 @@ function GameApp() {
 
   const handleExitRoom = useCallback(() => {
     networkRef.current.disconnect();
+    setIsAssetsLoaded(false);
+    setIsNetworkInit(false);
+    setPreloadedMap(null);
+    setPreloadedTilesets([]);
     setScreen('landing');
   }, []);
 
@@ -441,8 +459,33 @@ function GameApp() {
 
   if (screen === 'loading') {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0a192f] text-[#ccd6f6] font-semibold text-xl">
-        <h2>Joining space...</h2>
+      <div className="relative w-screen h-screen flex flex-col items-center justify-center overflow-hidden">
+        {/* Blurred background image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center transition-all duration-500 scale-105"
+          style={{ 
+            backgroundImage: "url('/spawnScreen.png')",
+            filter: "blur(12px) brightness(0.55)"
+          }}
+        />
+        {/* Loading content */}
+        <div className="relative z-10 flex flex-col items-center gap-4 text-center px-6">
+          {/* Premium CSS loading indicator */}
+          <div className="w-10 h-10 border-2 border-white/10 border-t-white rounded-full animate-spin mb-2" />
+          
+          <h2 
+            className="text-3xl md:text-4xl text-white tracking-tight"
+            style={{ fontFamily: "'Gilda Display', serif", fontWeight: 200 }}
+          >
+            Spawning into the world
+          </h2>
+          <p 
+            className="text-xs text-white/50 tracking-widest uppercase font-medium animate-pulse"
+            style={{ fontFamily: '"roobert", "roobert Fallback", sans-serif' }}
+          >
+            Loading map assets...
+          </p>
+        </div>
       </div>
     );
   }
