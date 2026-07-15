@@ -17,7 +17,7 @@ export function Navbar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <img src="/logo.png" alt="Haven Logo" className="w-12 h-12" />
+        <img src="/logo.webp" alt="Haven Logo" className="w-12 h-12" />
         <span className="text-gray-900 font-bold text-2xl" style={{ fontWeight: 600 }}>Haven</span>
       </div>
 

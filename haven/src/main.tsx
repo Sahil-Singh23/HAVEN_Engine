@@ -464,7 +464,7 @@ function GameApp() {
         <div 
           className="absolute inset-0 bg-cover bg-center transition-all duration-500 scale-105"
           style={{ 
-            backgroundImage: "url('/spawnScreen.png')",
+            backgroundImage: "url('/spawnScreen.webp')",
             filter: "blur(12px) brightness(0.55)"
           }}
         />
