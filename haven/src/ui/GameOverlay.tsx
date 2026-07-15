@@ -15,6 +15,7 @@ interface GameOverlayProps {
   onSendChat: (text: string) => void;
   uiTick: number;
   onExitRoom: () => void;
+  isGameReady: boolean;
 }
 
 export function GameOverlay({ 
@@ -23,7 +24,8 @@ export function GameOverlay({
   onChatModeChange, 
   onSendChat,
   uiTick,
-  onExitRoom
+  onExitRoom,
+  isGameReady
 }: GameOverlayProps) {
   const [showShareModal, setShowShareModal] = useState(true);
   const localPlayer = gameState.getLocalPlayer();
@@ -53,7 +55,7 @@ export function GameOverlay({
         {localPlayer?.room ?? ''}
       </div>
 
-      {showShareModal && (
+      {isGameReady && showShareModal && (
         <ShareModal 
           instanceCode={gameState.instanceCode ?? ''} 
           onClose={() => setShowShareModal(false)} 

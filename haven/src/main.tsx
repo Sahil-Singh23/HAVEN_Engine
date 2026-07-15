@@ -50,8 +50,7 @@ function GameApp() {
   // Asset preloading states
   const [preloadedMap, setPreloadedMap] = useState<any>(null);
   const [preloadedTilesets, setPreloadedTilesets] = useState<any[]>([]);
-  const [isAssetsLoaded, setIsAssetsLoaded] = useState(false);
-  const [isNetworkInit, setIsNetworkInit] = useState(false);
+  const [isGameReady, setIsGameReady] = useState(false);
 
   const gameStateRef = useRef(new GameState());
   const networkRef = useRef(new NetworkClient());
@@ -59,10 +58,10 @@ function GameApp() {
   const cleanupRef = useRef<(() => void) | null>(null);
   const pendingCodeRef = useRef(pendingJoinCode);
 
-  // Preload map assets as soon as we enter 'loading' state
+  // Preload map assets when the game screen starts
   useEffect(() => {
-    if (screen === 'loading') {
-      setIsAssetsLoaded(false);
+    if (screen === 'game') {
+      setIsGameReady(false);
       let active = true;
       const preload = async () => {
         try {
@@ -77,7 +76,6 @@ function GameApp() {
           if (active) {
             setPreloadedMap(map);
             setPreloadedTilesets(tilesets);
-            setIsAssetsLoaded(true);
           }
         } catch (err) {
           console.error("Failed to preload map assets:", err);
@@ -89,13 +87,6 @@ function GameApp() {
       };
     }
   }, [screen]);
-
-  // Coordinate transition to 'game' when both network and assets are ready
-  useEffect(() => {
-    if (isAssetsLoaded && isNetworkInit) {
-      setScreen('game');
-    }
-  }, [isAssetsLoaded, isNetworkInit]);
 
   // Start game loop when entering game screen
   useEffect(() => {
@@ -341,6 +332,10 @@ function GameApp() {
     // Initialize
     const init = async () => {
       try {
+        if (!preloadedMap || !preloadedTilesets || preloadedTilesets.length === 0) {
+          return;
+        }
+
         const map = preloadedMap;
         const tilesets = preloadedTilesets;
 
@@ -355,6 +350,7 @@ function GameApp() {
 
         // Start loop
         animationId = requestAnimationFrame(loop);
+        setIsGameReady(true);
       } catch (err) {
         console.error('Failed to initialize game:', err);
       }
@@ -381,7 +377,7 @@ function GameApp() {
         cleanupRef.current = null;
       }
     };
-  }, [screen]);
+  }, [screen, preloadedMap, preloadedTilesets]);
 
   // Landing handlers
   const handleCreate = useCallback((name: string) => {
@@ -395,7 +391,7 @@ function GameApp() {
     });
 
     network.on('init', () => {
-      setIsNetworkInit(true);
+      setScreen('game');
     });
 
     network.onOpen(() => {
@@ -408,7 +404,7 @@ function GameApp() {
     network.connect(getWsUrl());
 
     network.on('init', () => {
-      setIsNetworkInit(true);
+      setScreen('game');
     });
 
     network.on('joinFailed', (msg) => {
@@ -436,8 +432,7 @@ function GameApp() {
 
   const handleExitRoom = useCallback(() => {
     networkRef.current.disconnect();
-    setIsAssetsLoaded(false);
-    setIsNetworkInit(false);
+    setIsGameReady(false);
     setPreloadedMap(null);
     setPreloadedTilesets([]);
     setScreen('landing');
@@ -459,33 +454,8 @@ function GameApp() {
 
   if (screen === 'loading') {
     return (
-      <div className="relative w-screen h-screen flex flex-col items-center justify-center overflow-hidden">
-        {/* Blurred background image */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center transition-all duration-500 scale-105"
-          style={{ 
-            backgroundImage: "url('/spawnScreen.webp')",
-            filter: "blur(12px) brightness(0.55)"
-          }}
-        />
-        {/* Loading content */}
-        <div className="relative z-10 flex flex-col items-center gap-4 text-center px-6">
-          {/* Premium CSS loading indicator */}
-          <div className="w-10 h-10 border-2 border-white/10 border-t-white rounded-full animate-spin mb-2" />
-          
-          <h2 
-            className="text-3xl md:text-4xl text-white tracking-tight"
-            style={{ fontFamily: "'Gilda Display', serif", fontWeight: 200 }}
-          >
-            Spawning into the world
-          </h2>
-          <p 
-            className="text-xs text-white/50 tracking-widest uppercase font-medium animate-pulse"
-            style={{ fontFamily: '"roobert", "roobert Fallback", sans-serif' }}
-          >
-            Loading map assets...
-          </p>
-        </div>
+      <div className="flex items-center justify-center h-screen bg-[#0a192f] text-[#ccd6f6] font-semibold text-xl">
+        <h2>Connecting to space...</h2>
       </div>
     );
   }
@@ -493,6 +463,39 @@ function GameApp() {
   return (
     <>
       <canvas id="game" ref={canvasRef} className="block fixed inset-0 w-full h-full z-[1]" />
+      
+      {/* Blurred Spawning Overlay */}
+      {!isGameReady && (
+        <div className="fixed inset-0 z-[2] flex flex-col items-center justify-center overflow-hidden transition-opacity duration-500">
+          {/* Blurred background image */}
+          <div 
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ 
+              backgroundImage: "url('/spawnScreen.webp')",
+              filter: "blur(12px) brightness(0.55)"
+            }}
+          />
+          {/* Loading content */}
+          <div className="relative z-10 flex flex-col items-center gap-4 text-center px-6">
+            {/* Premium CSS loading indicator */}
+            <div className="w-10 h-10 border-2 border-white/10 border-t-white rounded-full animate-spin mb-2" />
+            
+            <h2 
+              className="text-3xl md:text-4xl text-white tracking-tight"
+              style={{ fontFamily: "'Gilda Display', serif", fontWeight: 200 }}
+            >
+              Spawning into the world
+            </h2>
+            <p 
+              className="text-xs text-white/50 tracking-widest uppercase font-medium animate-pulse"
+              style={{ fontFamily: '"roobert", "roobert Fallback", sans-serif' }}
+            >
+              Loading map assets...
+            </p>
+          </div>
+        </div>
+      )}
+
       <GameOverlay
         gameState={gameStateRef.current}
         chatMode={chatMode}
@@ -500,6 +503,7 @@ function GameApp() {
         onSendChat={handleSendChat}
         uiTick={uiTick}
         onExitRoom={handleExitRoom}
+        isGameReady={isGameReady}
       />
     </>
   );
