@@ -1304,7 +1304,7 @@
         {
          "columns":20,
          "firstgid":1,
-         "image":"tilesets\/Idle.png",
+         "image":"tilesets\/Idle.webp",
          "imageheight":32,
          "imagewidth":320,
          "margin":0,
