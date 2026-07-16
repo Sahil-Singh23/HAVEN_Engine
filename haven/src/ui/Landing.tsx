@@ -90,6 +90,9 @@ export function Landing({ onCreate }: LandingProps) {
                 </button>
               </div>
             </div>
+
+            {/* Mobile spacer */}
+            <div className="block lg:hidden" style={{ height: 220 }} />
           </div>
 
           {/* Right Content - 3D Model */}

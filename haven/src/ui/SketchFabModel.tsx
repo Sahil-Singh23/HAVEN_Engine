@@ -70,19 +70,19 @@ export function SketchFabModel() {
   }, []);
 
   return (
-    <div className="relative w-full h-[380px] lg:h-[600px]">
+    <div className="relative w-full h-[350px] lg:h-[600px]">
       {/* Show loader only while loading is active */}
       <SketchFabLoader progress={progress} active={active} />
 
       <div
-        className="sketchfab-embed-wrapper w-full h-[320px] lg:h-[542px] relative overflow-hidden"
+        className="sketchfab-embed-wrapper w-full h-[290px] lg:h-[542px] relative overflow-hidden pointer-events-none lg:pointer-events-auto"
       >
         <iframe
           ref={iframeRef}
           title="Cozy Isometric Room"
           allowFullScreen
           allow="autoplay; fullscreen; xr-spatial-tracking"
-          className="absolute left-0 w-full -top-[30px] lg:-top-[50px] bottom-[100px] h-[400px] lg:h-[650px] border-none"
+          className="absolute left-0 w-full -top-[48px] lg:-top-[50px] bottom-[100px] h-[390px] lg:h-[650px] border-none"
           style={{
             background: "#F9F9FB",
           }}
