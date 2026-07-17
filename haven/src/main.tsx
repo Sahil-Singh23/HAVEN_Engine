@@ -46,6 +46,17 @@ function GameApp() {
   const [screen, setScreen] = useState<Screen>(pendingJoinCode ? 'loading' : 'landing');
   const [chatMode, setChatMode] = useState<ChatMode>('global');
   const [uiTick, setUiTick] = useState(0);
+
+  // Toggle body class for game-mode (disables touch scrolling & overflow)
+  useEffect(() => {
+    if (screen === 'game' || screen === 'loading') {
+      document.body.classList.add('game-mode');
+      document.body.style.background = '#1d1110';
+    } else {
+      document.body.classList.remove('game-mode');
+      document.body.style.background = '#F9F9FB';
+    }
+  }, [screen]);
   
   // Asset preloading states
   const [preloadedMap, setPreloadedMap] = useState<any>(null);
