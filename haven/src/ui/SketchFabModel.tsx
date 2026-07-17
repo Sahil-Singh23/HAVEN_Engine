@@ -32,6 +32,31 @@ export function SketchFabModel() {
           api.addEventListener("viewerready", () => {
             setProgress(100);
             setActive(false);
+
+            // Tilt camera ~13° more front-facing
+            api.getCameraLookAt((err: any, camera: any) => {
+              if (err) return;
+              const [px, py, pz] = camera.position;
+              const [tx, ty, tz] = camera.target;
+
+              const dx = px - tx;
+              const dy = py - ty;
+              const dz = pz - tz;
+
+              const horizDist = Math.sqrt(dx * dx + dz * dz);
+              const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              const currentAngle = Math.atan2(dy, horizDist);
+              const newAngle = currentAngle - (-13 * Math.PI) / 180;
+
+              const newHorizDist = dist * Math.cos(newAngle);
+              const scale = horizDist > 0 ? newHorizDist / horizDist : 1;
+
+              api.setCameraLookAt(
+                [tx + dx * scale, ty + dist * Math.sin(newAngle), tz + dz * scale],
+                [tx, ty, tz],
+                0
+              );
+            });
           });
         },
         error: (err: any) => {
@@ -75,7 +100,7 @@ export function SketchFabModel() {
       <SketchFabLoader progress={progress} active={active} />
 
       <div
-        className="sketchfab-embed-wrapper w-full h-[290px] lg:h-[542px] relative overflow-hidden pointer-events-none lg:pointer-events-auto"
+        className="sketchfab-embed-wrapper w-full h-[290px] lg:h-[542px] relative overflow-hidden pointer-events-auto"
       >
         <iframe
           ref={iframeRef}

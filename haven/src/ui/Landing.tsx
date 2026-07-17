@@ -38,9 +38,9 @@ export function Landing({ onCreate }: LandingProps) {
         <Navbar />
 
         {/* Hero Section */}
-        <div className="flex-1 flex flex-col-reverse lg:flex-row items-stretch lg:items-start mt-4 lg:mt-14 px-6 md:px-16 text-left gap-8 lg:gap-12">
+        <div className="flex-1 flex flex-col-reverse lg:flex-row items-stretch lg:items-start mt-4 lg:mt-14 px-6 md:px-16 text-left lg:gap-12">
           {/* Left Content */}
-          <div className="flex flex-col w-full lg:flex-1 mt-6 lg:mt-34 pb-12 lg:pb-0" style={{ minWidth: 0 }}>
+          <div className="flex flex-col w-full lg:flex-1 lg:mt-34 pb-12 lg:pb-0" style={{ minWidth: 0 }}>
             {/* Main Heading */}
             <h1 
               className="text-4xl md:text-[85px] leading-tight -mb-4 md:-mb-8 tracking-[-2px] md:tracking-[-4px]"
