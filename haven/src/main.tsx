@@ -444,6 +444,7 @@ function GameApp() {
 
   const handleExitRoom = useCallback(() => {
     networkRef.current.disconnect();
+    gameStateRef.current.reset();
     setIsGameReady(false);
     setPreloadedMap(null);
     setPreloadedTilesets([]);

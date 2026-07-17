@@ -14,6 +14,15 @@ export class GameState {
   chatMessages: ChatMessage[] = [];
   currentRoom: string | null = null;
 
+  reset(): void {
+    this.localId = null;
+    this.instanceCode = null;
+    this.players.clear();
+    this.zones = [];
+    this.chatMessages = [];
+    this.currentRoom = null;
+  }
+
   setLocalId(id: string): void {
     this.localId = id;
   }
