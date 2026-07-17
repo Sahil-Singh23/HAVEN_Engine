@@ -29,11 +29,11 @@ export function Landing({ onCreate }: LandingProps) {
 
   return (
     <div 
-      className="w-full h-screen overflow-y-auto"
+      className="w-full min-h-[100dvh]"
       style={{ backgroundColor: "#F9F9FB" }}
     >
       {/* Content Container */}
-      <div className="relative z-10 min-h-screen flex flex-col">
+      <div className="relative z-10 min-h-[100dvh] flex flex-col">
         {/* Navigation Bar */}
         <Navbar />
 

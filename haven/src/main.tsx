@@ -19,7 +19,7 @@ import { buildCollisionGrid } from './engine/Collision';
 import { loadMap } from './map/MapLoader';
 import { loadTileset } from './map/TilesetLoader';
 import { PredictionBuffer } from './network/PredictionBuffer';
-import { initTouchInput } from './input/TouchInput';
+import { initTouchInput, type TouchInput } from './input/TouchInput';
 import type{ ChatMode } from './shared/types';
 
 type Screen = 'landing' | 'nickname' | 'loading' | 'game';
@@ -138,7 +138,7 @@ function GameApp() {
     let entityManager: EntityManager;
     let predictionBuffer: PredictionBuffer;
     let camera: Camera;
-    let getTouchKeys: () => string[];
+    let touchInput: TouchInput;
     let animationId: number;
 
     // Input
@@ -270,7 +270,7 @@ function GameApp() {
       
       if (localPlayer) {
         // Merge inputs
-        const touchKeys = getTouchKeys();
+        const touchKeys = touchInput.getKeys();
         const allKeys = new Set([...keys, ...touchKeys]);
 
         // Update local entity
@@ -355,7 +355,7 @@ function GameApp() {
         entityManager = new EntityManager();
         predictionBuffer = new PredictionBuffer();
         camera = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight, zoom: 2.1 };
-        getTouchKeys = initTouchInput();
+        touchInput = initTouchInput();
 
         setupNetwork();
 
@@ -380,6 +380,7 @@ function GameApp() {
       window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationId);
       clearInterval(heartbeatInterval);
+      if (touchInput) touchInput.destroy();
     };
 
     return () => {

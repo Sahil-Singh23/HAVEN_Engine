@@ -1,6 +1,11 @@
 // src/input/TouchInput.ts
 
-export function initTouchInput(): () => string[] {
+export interface TouchInput {
+  getKeys: () => string[];
+  destroy: () => void;
+}
+
+export function initTouchInput(): TouchInput {
   const keys = new Set<string>();
   
   // Virtual joystick zone (left side of screen)
@@ -14,10 +19,9 @@ export function initTouchInput(): () => string[] {
   `;
   
   // Only show on touch devices
-  if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  if (isTouchDevice) {
     document.body.appendChild(zone);
-  } else {
-    zone.style.display = 'none'; // Hide on non-touch devices
   }
 
   let startX = 0, startY = 0;
@@ -63,5 +67,12 @@ export function initTouchInput(): () => string[] {
     if (normDx > threshold) keys.add('d');
   }
 
-  return () => Array.from(keys);
+  return {
+    getKeys: () => Array.from(keys),
+    destroy: () => {
+      if (zone.parentNode) {
+        zone.parentNode.removeChild(zone);
+      }
+    },
+  };
 }

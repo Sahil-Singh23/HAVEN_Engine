@@ -84,8 +84,8 @@ export function SketchFabLoader({ progress, active, onFinished }: SketchFabLoade
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col justify-end p-3 md:p-8 transition-all duration-600 ease-in-out ${
-        shouldFadeOut ? "opacity-0 pointer-events-none" : "opacity-100"
+      className={`fixed inset-0 z-50 flex flex-col justify-end p-3 md:p-8 pointer-events-none transition-all duration-600 ease-in-out ${
+        shouldFadeOut ? "opacity-0" : "opacity-100"
       }`}
       style={{
         backgroundColor: "#F9F9FB",
