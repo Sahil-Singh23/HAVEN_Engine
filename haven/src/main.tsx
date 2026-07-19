@@ -22,7 +22,7 @@ import { PredictionBuffer } from './network/PredictionBuffer';
 import { initTouchInput, type TouchInput } from './input/TouchInput';
 import type{ ChatMode } from './shared/types';
 
-type Screen = 'landing' | 'nickname' | 'loading' | 'game';
+type Screen = 'landing' | 'nickname' | 'game';
 
 // Check for /join/:code in the URL before React renders anything
 const joinMatch = window.location.pathname.match(/^\/join\/([A-Za-z0-9]{6})$/);
@@ -43,13 +43,13 @@ const getWsUrl = () => {
 };
 
 function GameApp() {
-  const [screen, setScreen] = useState<Screen>(pendingJoinCode ? 'loading' : 'landing');
+  const [screen, setScreen] = useState<Screen>(pendingJoinCode ? 'game' : 'landing');
   const [chatMode, setChatMode] = useState<ChatMode>('global');
   const [uiTick, setUiTick] = useState(0);
 
   // Toggle body class for game-mode (disables touch scrolling & overflow)
   useEffect(() => {
-    if (screen === 'game' || screen === 'loading') {
+    if (screen === 'game') {
       document.body.classList.add('game-mode');
       document.body.style.background = '#1d1110';
     } else {
@@ -422,7 +422,7 @@ function GameApp() {
     network.on('instanceCreated', (msg) => {
       network.joinInstance(msg.code, name)
       ;
-      setScreen('loading');
+      setScreen('game');
     });
 
     network.on('init', () => {
@@ -483,18 +483,11 @@ function GameApp() {
       <NicknameModal onSubmit={(name) => {
         const code = joinMatch ? joinMatch[1].toUpperCase() : '';
         handleJoin(code, name);
-        setScreen('loading');
+        setScreen('game');
       }} />
     );
   }
 
-  if (screen === 'loading') {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#0a192f] text-[#ccd6f6] font-semibold text-xl">
-        <h2>Connecting to space...</h2>
-      </div>
-    );
-  }
 
   return (
     <>
