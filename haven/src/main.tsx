@@ -62,6 +62,8 @@ function GameApp() {
   const [preloadedMap, setPreloadedMap] = useState<any>(null);
   const [preloadedTilesets, setPreloadedTilesets] = useState<any[]>([]);
   const [isGameReady, setIsGameReady] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [loadStage, setLoadStage] = useState('Initializing...');
 
   const gameStateRef = useRef(new GameState());
   const networkRef = useRef(new NetworkClient());
@@ -73,23 +75,46 @@ function GameApp() {
   useEffect(() => {
     if (screen === 'game') {
       setIsGameReady(false);
+      setLoadProgress(0);
+      setLoadStage('Initializing...');
       let active = true;
       const preload = async () => {
         try {
+          setLoadStage('Loading map data...');
           const map = await loadMap('/maps/final_map.tmj');
+          if (!active) return;
+          setLoadProgress(10);
+
+          const validTilesets = map.tilesets.filter((ts: any) => ts.source);
+          const totalTilesets = validTilesets.length;
           const tilesets = [];
-          for (const ts of map.tilesets) {
-            if (!ts.source) continue;
+
+          for (let i = 0; i < validTilesets.length; i++) {
+            const ts = validTilesets[i];
+            if (!active) return;
+            setLoadStage('Loading assets...');
             const loaded = await loadTileset(ts.source, '/maps/');
             (loaded as any).firstgid = ts.firstgid;
             tilesets.push(loaded);
+            if (active) {
+              // Map JSON = 10%, tilesets share remaining 90%
+              const tilesetProgress = 10 + Math.round(((i + 1) / totalTilesets) * 85);
+              setLoadProgress(tilesetProgress);
+            }
           }
+
           if (active) {
+            setLoadStage('Preparing renderer...');
+            setLoadProgress(98);
             setPreloadedMap(map);
             setPreloadedTilesets(tilesets);
+            // Small delay so user sees 100% before overlay fades
+            await new Promise(r => setTimeout(r, 200));
+            if (active) setLoadProgress(100);
           }
         } catch (err) {
           console.error("Failed to preload map assets:", err);
+          if (active) setLoadStage('Failed to load assets');
         }
       };
       preload();
@@ -489,22 +514,56 @@ function GameApp() {
             }}
           />
           {/* Loading content */}
-          <div className="relative z-10 flex flex-col items-center gap-4 text-center px-6">
-            {/* Premium CSS loading indicator */}
-            <div className="w-10 h-10 border-2 border-white/10 border-t-white rounded-full animate-spin mb-2" />
-            
+          <div className="relative z-10 flex flex-col items-center gap-6 text-center px-6">
             <h2 
               className="text-3xl md:text-4xl text-white tracking-tight"
               style={{ fontFamily: "'Gilda Display', serif", fontWeight: 200 }}
             >
               Spawning into the world
             </h2>
-            <p 
-              className="text-xs text-white/50 tracking-widest uppercase font-medium animate-pulse"
-              style={{ fontFamily: '"roobert", "roobert Fallback", sans-serif' }}
-            >
-              Loading map assets...
-            </p>
+
+            {/* Progress bar */}
+            <div style={{ width: '280px', maxWidth: '80vw' }}>
+              <div
+                style={{
+                  width: '100%',
+                  height: '4px',
+                  borderRadius: '2px',
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${loadProgress}%`,
+                    height: '100%',
+                    borderRadius: '2px',
+                    background: 'linear-gradient(90deg, rgba(255,255,255,0.6), rgba(255,255,255,0.9))',
+                    transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'right',
+                  alignItems: 'right',
+                  marginTop: '10px',
+                }}
+              >
+                <p 
+                  style={{
+                    fontSize: '12px',
+                    color: 'rgba(255,255,255,0.7)',
+                    fontVariantNumeric: 'tabular-nums',
+                    fontWeight: 600,
+                    fontFamily: '"roobert", "roobert Fallback", sans-serif',
+                  }}
+                >
+                  {loadProgress}%
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
