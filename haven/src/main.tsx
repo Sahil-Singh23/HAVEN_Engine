@@ -63,7 +63,6 @@ function GameApp() {
   const [preloadedTilesets, setPreloadedTilesets] = useState<any[]>([]);
   const [isGameReady, setIsGameReady] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
-  const [loadStage, setLoadStage] = useState('Initializing...');
 
   const gameStateRef = useRef(new GameState());
   const networkRef = useRef(new NetworkClient());
@@ -76,11 +75,10 @@ function GameApp() {
     if (screen === 'game') {
       setIsGameReady(false);
       setLoadProgress(0);
-      setLoadStage('Initializing...');
       let active = true;
       const preload = async () => {
         try {
-          setLoadStage('Loading map data...');
+
           const map = await loadMap('/maps/final_map.tmj');
           if (!active) return;
           setLoadProgress(10);
@@ -92,7 +90,7 @@ function GameApp() {
           for (let i = 0; i < validTilesets.length; i++) {
             const ts = validTilesets[i];
             if (!active) return;
-            setLoadStage('Loading assets...');
+
             const loaded = await loadTileset(ts.source, '/maps/');
             (loaded as any).firstgid = ts.firstgid;
             tilesets.push(loaded);
@@ -104,7 +102,7 @@ function GameApp() {
           }
 
           if (active) {
-            setLoadStage('Preparing renderer...');
+
             setLoadProgress(98);
             setPreloadedMap(map);
             setPreloadedTilesets(tilesets);
@@ -114,7 +112,7 @@ function GameApp() {
           }
         } catch (err) {
           console.error("Failed to preload map assets:", err);
-          if (active) setLoadStage('Failed to load assets');
+
         }
       };
       preload();
