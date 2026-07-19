@@ -17,6 +17,7 @@
     "lucide-react": "^1.24.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "redis": "^6.1.0",
     "tailwindcss": "^4.3.2",
     "ws": "^8.21.0"
   },
@@ -25,6 +26,7 @@
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/redis": "^4.0.10",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^10.3.0",
