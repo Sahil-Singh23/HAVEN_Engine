@@ -98,8 +98,8 @@ export class NetworkClient {
     this.send({ type: 'createInstance', name });
   }
 
-  joinInstance(code: string, name: string): void {
-    this.send({ type: 'joinInstance', code, name });
+  joinInstance(code: string, name: string, spriteId = '01-0'): void {
+    this.send({ type: 'joinInstance', code, name, spriteId } as any);
   }
 
   sendInput(keys: string[], dt: number, sequence: number, x: number, y: number): void {

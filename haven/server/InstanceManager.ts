@@ -17,7 +17,7 @@ export class InstanceManager {
     return code;
   }
 
-  joinInstance(code: string, playerId: string, ws: WebSocket, name: string): boolean {
+  joinInstance(code: string, playerId: string, ws: WebSocket, name: string, spriteId = '01-0'): boolean {
     const upperCode = code.toUpperCase();
     const instance = this.instances.get(upperCode);
     
@@ -31,7 +31,7 @@ export class InstanceManager {
       return false;
     }
 
-    instance.addPlayer(playerId, ws, name);
+    instance.addPlayer(playerId, ws, name, spriteId);
     this.playerToInstance.set(playerId, upperCode);
     return true;
   }

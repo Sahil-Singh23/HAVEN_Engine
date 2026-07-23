@@ -13,6 +13,7 @@ export interface PlayerState {
   status: 'online' | 'away';
   room: string | null;
   name: string;
+  spriteId: string;   // e.g. "01-3" = sheet 01.png, character index 3
 }
 
 

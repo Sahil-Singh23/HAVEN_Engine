@@ -47,7 +47,8 @@ wss.on('connection', (ws) => {
         
         case 'joinInstance': {
           const playerName = msg.name || playerId.slice(0, 6);
-          const success = instanceManager.joinInstance(msg.code, playerId, ws, playerName);
+          const spriteId = msg.spriteId || '01-0';
+          const success = instanceManager.joinInstance(msg.code, playerId, ws, playerName, spriteId);
           if (!success) {
             ws.send(JSON.stringify({ 
               type: 'joinFailed', 

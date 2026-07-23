@@ -1,5 +1,6 @@
 import type { AnyEntity } from './Entity';
 import type { Camera } from '../engine/Camera';
+import { drawSprite } from './SpriteRenderer';
 
 export function renderEntities(
   ctx: CanvasRenderingContext2D,
@@ -20,13 +21,18 @@ export function renderEntities(
   ctx.scale(camera.zoom, camera.zoom);
   ctx.translate(-camera.x, -camera.y);
 
+  // Disable smoothing so pixel-art sprites stay crisp
+  ctx.imageSmoothingEnabled = false;
+
   for (const entity of sorted) {
-    ctx.fillStyle = entity.color;
-    ctx.fillRect(
+    // Draw the sprite tile at the entity's world position
+    drawSprite(
+      ctx,
+      entity.spriteId,
+      entity.facing,
+      entity.animFrame,
       entity.position.x,
       entity.position.y,
-      entity.size.width,
-      entity.size.height
     );
 
     // Draw player name above entity

@@ -13,6 +13,7 @@ import { createLocalEntity, createRemoteEntity } from './entities/Entity';
 import { updateLocalEntity } from './entities/LocalController';
 import { updateRemoteEntity } from './entities/RemoteController';
 import { renderEntities } from './entities/EntityRenderer';
+import { loadSpriteSheet } from './entities/SpriteRenderer';
 import { MapRenderer } from './engine/Renderer';
 import { type Camera, updateCamera } from './engine/Camera';
 import { buildCollisionGrid } from './engine/Collision';
@@ -37,7 +38,7 @@ const getWsUrl = () => {
   }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'ws://localhost:3001';
+    return 'ws://localhost:5010';
   }
   return `${protocol}//${window.location.host}`;
 };
@@ -95,14 +96,19 @@ function GameApp() {
             (loaded as any).firstgid = ts.firstgid;
             tilesets.push(loaded);
             if (active) {
-              // Map JSON = 10%, tilesets share remaining 90%
-              const tilesetProgress = 10 + Math.round(((i + 1) / totalTilesets) * 85);
+              // Map JSON = 10%, tilesets share remaining 85%
+              const tilesetProgress = 10 + Math.round(((i + 1) / totalTilesets) * 80);
               setLoadProgress(tilesetProgress);
             }
           }
 
+          // Load sprite sheets (remaining 10%)
           if (active) {
+            await loadSpriteSheet('01').catch(() => console.warn('Sprite sheet 01 not found'));
+            setLoadProgress(95);
+          }
 
+          if (active) {
             setLoadProgress(98);
             setPreloadedMap(map);
             setPreloadedTilesets(tilesets);
@@ -193,11 +199,11 @@ function GameApp() {
           gameState.updatePlayer(id, state);
           
           if (id === msg.yourId) {
-            const local = createLocalEntity(state.x, state.y);
+            const local = createLocalEntity(state.x, state.y, state.spriteId);
             local.id = id;
             entityManager.add(local);
           } else {
-            entityManager.add(createRemoteEntity(id, state.x, state.y));
+            entityManager.add(createRemoteEntity(id, state.x, state.y, state.spriteId));
           }
         }
 
@@ -257,7 +263,7 @@ function GameApp() {
 
       network.on('playerJoined', (msg) => {
         gameState.updatePlayer(msg.player.id, msg.player);
-        entityManager.add(createRemoteEntity(msg.player.id, msg.player.x, msg.player.y));
+        entityManager.add(createRemoteEntity(msg.player.id, msg.player.x, msg.player.y, msg.player.spriteId));
         setUiTick(t => t + 1);
       });
 
@@ -342,7 +348,7 @@ function GameApp() {
       // Update remote entities with interpolation
       const now = Date.now();
       for (const remote of entityManager.getRemotes()) {
-        updateRemoteEntity(remote, now);
+        updateRemoteEntity(remote, now, dt);
       }
 
       camera.width = window.innerWidth;
@@ -415,13 +421,12 @@ function GameApp() {
   }, [screen, preloadedMap, preloadedTilesets]);
 
   // Landing handlers
-  const handleCreate = useCallback((name: string) => {
+  const handleCreate = useCallback((name: string, spriteId: string) => {
     const network = networkRef.current;
     network.connect(getWsUrl());
 
     network.on('instanceCreated', (msg) => {
-      network.joinInstance(msg.code, name)
-      ;
+      network.joinInstance(msg.code, name, spriteId);
       setScreen('game');
     });
 
@@ -434,7 +439,7 @@ function GameApp() {
     });
   }, []);
 
-  const handleJoin = useCallback((code: string, name: string) => {
+  const handleJoin = useCallback((code: string, name: string, spriteId = '01-0') => {
     const network = networkRef.current;
     network.connect(getWsUrl());
 
@@ -447,7 +452,7 @@ function GameApp() {
     });
 
     network.onOpen(() => {
-      network.joinInstance(code, name);
+      network.joinInstance(code, name, spriteId);
     });
   }, []);
 
@@ -482,7 +487,8 @@ function GameApp() {
     return (
       <NicknameModal onSubmit={(name) => {
         const code = joinMatch ? joinMatch[1].toUpperCase() : '';
-        handleJoin(code, name);
+        const spriteId = localStorage.getItem('haven-sprite') || '01-0';
+        handleJoin(code, name, spriteId);
         setScreen('game');
       }} />
     );
