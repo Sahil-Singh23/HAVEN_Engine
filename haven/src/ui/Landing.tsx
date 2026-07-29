@@ -4,15 +4,21 @@ import { useState, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Navbar } from './Navbar';
 import { SketchFabModel } from './SketchFabModel';
+import { SpritePicker, PICKER_SPRITES } from './SpritePicker';
 
 const NICKNAME_KEY = 'haven-nickname';
+const SPRITE_KEY = 'haven-sprite';
 
 interface LandingProps {
-  onCreate: (name: string) => void;
+  onCreate: (name: string, sprite: string) => void;
 }
 
 export function Landing({ onCreate }: LandingProps) {
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_KEY) || '');
+  const [selectedSprite, setSelectedSprite] = useState(() => {
+    const saved = localStorage.getItem(SPRITE_KEY);
+    return saved && PICKER_SPRITES.includes(saved) ? saved : PICKER_SPRITES[0];
+  });
 
   // Persist nickname to localStorage on change
   useEffect(() => {
@@ -21,10 +27,15 @@ export function Landing({ onCreate }: LandingProps) {
     }
   }, [nickname]);
 
+  // Persist sprite selection
+  useEffect(() => {
+    localStorage.setItem(SPRITE_KEY, selectedSprite);
+  }, [selectedSprite]);
+
   const handleCreate = () => {
     const name = nickname.trim() || 'Anon';
     localStorage.setItem(NICKNAME_KEY, name);
-    onCreate(name);
+    onCreate(name, selectedSprite);
   };
 
   return (
@@ -38,7 +49,7 @@ export function Landing({ onCreate }: LandingProps) {
         <Navbar />
 
         {/* Hero Section */}
-        <div className="flex-1 flex flex-col-reverse lg:flex-row items-stretch lg:items-start mt-4 lg:mt-14 px-6 md:px-16 text-left lg:gap-12">
+        <div className="flex-1 flex flex-col-reverse lg:flex-row items-stretch lg:items-start px-6 md:px-16 text-left lg:gap-12">
           {/* Left Content */}
           <div className="flex flex-col w-full lg:flex-1 lg:mt-34 pb-12 lg:pb-0" style={{ minWidth: 0 }}>
             {/* Main Heading */}
@@ -59,14 +70,20 @@ export function Landing({ onCreate }: LandingProps) {
 
             {/* Description */}
             <p 
-              className="text-base md:text-xl max-w-2xl ml-1 leading-relaxed mb-8 text-left md:text-justify"
+              className="text-base md:text-xl max-w-2xl ml-1 leading-relaxed mb-1 text-left md:text-justify"
               style={{ color: "#9494A9", fontFamily: '"roobert", "roobert Fallback", sans-serif' }}
             >
               Haven is a virtual workspace designed for seamless collaboration — one where you can meet, chat, and work together naturally, as if you're in the same room.
             </p>
 
-            {/* Nickname + CTA Section */}
-            <div className="flex flex-col gap-5 items-start">
+            {/* Nickname + Sprite Picker + CTA Section */}
+            <div className="flex flex-col gap-2 items-start">
+              {/* Sprite Picker */}
+              <SpritePicker
+                selectedSprite={selectedSprite}
+                onSelect={setSelectedSprite}
+              />
+
               <div className="flex flex-wrap items-center gap-4">
                 {/* Nickname input */}
                 <input

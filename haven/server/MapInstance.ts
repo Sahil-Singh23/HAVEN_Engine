@@ -26,6 +26,7 @@ interface ServerPlayer {
   status: 'online' | 'away';
   room: string | null;
   name: string;
+  sprite: string;
 }
 
 export class MapInstance {
@@ -80,7 +81,7 @@ export class MapInstance {
     };
   }
 
-  addPlayer(id: string, ws: WebSocket, name: string): void {
+  addPlayer(id: string, ws: WebSocket, name: string, sprite?: string): void {
     const spawnLayer = this.mapData.layers.find(
       (l: any) => l.type === 'objectgroup' && l.name === 'objects'
     );
@@ -97,7 +98,8 @@ export class MapInstance {
       lastInput: Date.now(),
       status: 'online',
       room: getPlayerRoom(x, y, this.zones),
-      name: name || id.slice(0, 6)
+      name: name || id.slice(0, 6),
+      sprite: sprite || '8D actor1-1[VS8]'
     };
 
     this.players.set(id, player);
@@ -305,7 +307,8 @@ export class MapInstance {
       y: p.y,
       status: p.status,
       room: p.room,
-      name: p.name
+      name: p.name,
+      sprite: p.sprite
     };
   }
 

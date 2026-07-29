@@ -20,7 +20,8 @@ import { loadMap } from './map/MapLoader';
 import { loadTileset } from './map/TilesetLoader';
 import { PredictionBuffer } from './network/PredictionBuffer';
 import { initTouchInput, type TouchInput } from './input/TouchInput';
-import type{ ChatMode } from './shared/types';
+import type { ChatMode } from './shared/types';
+import { loadSpriteSheet } from './entities/SpriteRenderer';
 
 type Screen = 'landing' | 'nickname' | 'game';
 
@@ -37,13 +38,77 @@ const getWsUrl = () => {
   }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'ws://localhost:3001';
+    return 'ws://localhost:5010';
   }
   return `${protocol}//${window.location.host}`;
 };
 
+// ── Eager asset preloader ──────────────────────────────────────────────────
+// Starts downloading map + tileset assets immediately when the JS bundle
+// loads (on Landing page or NicknameModal), so they're ready by the time
+// the user clicks Join/Create.
+const assetPreloader = (() => {
+  type Listener = (progress: number) => void;
+  let result: { map: any; tilesets: any[] } | null = null;
+  let error: Error | null = null;
+  let progress = 0;
+  const listeners = new Set<Listener>();
+
+  const notify = () => listeners.forEach(l => l(progress));
+
+  const promise = (async () => {
+    const map = await loadMap('/maps/final_map.tmj');
+    progress = 10;
+    notify();
+
+    const validTilesets = map.tilesets.filter((ts: any) => ts.source);
+    const totalTilesets = validTilesets.length;
+    const tilesets: any[] = [];
+
+    for (let i = 0; i < validTilesets.length; i++) {
+      const ts = validTilesets[i];
+      const loaded = await loadTileset(ts.source, '/maps/');
+      (loaded as any).firstgid = ts.firstgid;
+      tilesets.push(loaded);
+      progress = 10 + Math.round(((i + 1) / totalTilesets) * 85);
+      notify();
+    }
+
+    progress = 96;
+    notify();
+
+    // Preload default sprite sheet
+    await loadSpriteSheet('8D actor1-1[VS8]').catch(() => { });
+    progress = 98;
+    notify();
+
+    result = { map, tilesets };
+    return result;
+  })().catch(err => {
+    error = err;
+    console.error('Asset preloader failed:', err);
+    throw err;
+  });
+
+  return {
+    /** Already-resolved result (null if still loading) */
+    getResult: () => result,
+    getProgress: () => progress,
+    getError: () => error,
+    /** Await the full preload */
+    wait: () => promise,
+    /** Subscribe to progress updates (0–98). Returns unsubscribe fn. */
+    onProgress: (fn: Listener) => {
+      listeners.add(fn);
+      // Immediately fire current progress so late subscribers catch up
+      fn(progress);
+      return () => { listeners.delete(fn); };
+    },
+  };
+})();
+
 function GameApp() {
-  const [screen, setScreen] = useState<Screen>(pendingJoinCode ? 'game' : 'landing');
+  const [screen, setScreen] = useState<Screen>(pendingJoinCode ? 'nickname' : 'landing');
   const [chatMode, setChatMode] = useState<ChatMode>('global');
   const [uiTick, setUiTick] = useState(0);
 
@@ -57,7 +122,7 @@ function GameApp() {
       document.body.style.background = '#F9F9FB';
     }
   }, [screen]);
-  
+
   // Asset preloading states
   const [preloadedMap, setPreloadedMap] = useState<any>(null);
   const [preloadedTilesets, setPreloadedTilesets] = useState<any[]>([]);
@@ -70,56 +135,36 @@ function GameApp() {
   const cleanupRef = useRef<(() => void) | null>(null);
   const pendingCodeRef = useRef(pendingJoinCode);
 
-  // Preload map assets when the game screen starts
+  // Consume eagerly-preloaded assets when game screen activates.
+  // The assetPreloader singleton already started downloading at module
+  // load time (while user was on Landing / NicknameModal).
   useEffect(() => {
-    if (screen === 'game') {
-      setIsGameReady(false);
-      setLoadProgress(0);
-      let active = true;
-      const preload = async () => {
-        try {
+    if (screen !== 'game') return;
 
-          const map = await loadMap('/maps/final_map.tmj');
-          if (!active) return;
-          setLoadProgress(10);
+    setIsGameReady(false);
+    let active = true;
 
-          const validTilesets = map.tilesets.filter((ts: any) => ts.source);
-          const totalTilesets = validTilesets.length;
-          const tilesets = [];
+    // Subscribe to progress updates from the preloader
+    const unsub = assetPreloader.onProgress((p) => {
+      if (active) setLoadProgress(p);
+    });
 
-          for (let i = 0; i < validTilesets.length; i++) {
-            const ts = validTilesets[i];
-            if (!active) return;
+    assetPreloader.wait().then(({ map, tilesets }) => {
+      if (!active) return;
+      setPreloadedMap(map);
+      setPreloadedTilesets(tilesets);
+      // Small delay so user sees 100% before overlay fades
+      setTimeout(() => {
+        if (active) setLoadProgress(100);
+      }, 200);
+    }).catch(err => {
+      console.error('Failed to preload map assets:', err);
+    });
 
-            const loaded = await loadTileset(ts.source, '/maps/');
-            (loaded as any).firstgid = ts.firstgid;
-            tilesets.push(loaded);
-            if (active) {
-              // Map JSON = 10%, tilesets share remaining 90%
-              const tilesetProgress = 10 + Math.round(((i + 1) / totalTilesets) * 85);
-              setLoadProgress(tilesetProgress);
-            }
-          }
-
-          if (active) {
-
-            setLoadProgress(98);
-            setPreloadedMap(map);
-            setPreloadedTilesets(tilesets);
-            // Small delay so user sees 100% before overlay fades
-            await new Promise(r => setTimeout(r, 200));
-            if (active) setLoadProgress(100);
-          }
-        } catch (err) {
-          console.error("Failed to preload map assets:", err);
-
-        }
-      };
-      preload();
-      return () => {
-        active = false;
-      };
-    }
+    return () => {
+      active = false;
+      unsub();
+    };
   }, [screen]);
 
   // Start game loop when entering game screen
@@ -143,7 +188,7 @@ function GameApp() {
 
     // Canvas setup
     const dpr = window.devicePixelRatio || 1;
-    
+
     const resize = () => {
       canvas.width = window.innerWidth * dpr;
       canvas.height = window.innerHeight * dpr;
@@ -151,7 +196,7 @@ function GameApp() {
       canvas.style.height = window.innerHeight + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
-    
+
     resize();
     window.addEventListener('resize', resize);
 
@@ -191,13 +236,17 @@ function GameApp() {
         // Populate players
         for (const [id, state] of Object.entries(msg.players)) {
           gameState.updatePlayer(id, state);
-          
+
           if (id === msg.yourId) {
-            const local = createLocalEntity(state.x, state.y);
+            const local = createLocalEntity(state.x, state.y, state.sprite);
             local.id = id;
             entityManager.add(local);
+            // Eagerly load the local player's sprite
+            loadSpriteSheet(state.sprite).catch(() => { });
           } else {
-            entityManager.add(createRemoteEntity(id, state.x, state.y));
+            entityManager.add(createRemoteEntity(id, state.x, state.y, state.sprite));
+            // Eagerly load this remote player's sprite
+            loadSpriteSheet(state.sprite).catch(() => { });
           }
         }
 
@@ -257,7 +306,9 @@ function GameApp() {
 
       network.on('playerJoined', (msg) => {
         gameState.updatePlayer(msg.player.id, msg.player);
-        entityManager.add(createRemoteEntity(msg.player.id, msg.player.x, msg.player.y));
+        entityManager.add(createRemoteEntity(msg.player.id, msg.player.x, msg.player.y, msg.player.sprite));
+        // Eagerly load joining player's sprite
+        loadSpriteSheet(msg.player.sprite).catch(() => { });
         setUiTick(t => t + 1);
       });
 
@@ -290,7 +341,7 @@ function GameApp() {
       lastTime = timestamp;
 
       const localPlayer = gameState.getLocalPlayer();
-      
+
       if (localPlayer) {
         // Merge inputs
         const touchKeys = touchInput.getKeys();
@@ -304,7 +355,7 @@ function GameApp() {
           // Update room and trigger UI updates upon zone boundary crossings
           const oldRoom = gameState.currentRoom;
           const newRoom = gameState.updateLocalRoom(
-            localEntity.position.x, 
+            localEntity.position.x,
             localEntity.position.y
           );
           if (oldRoom !== newRoom) {
@@ -314,10 +365,10 @@ function GameApp() {
           // Send input to server
           if (allKeys.size > 0 || lastInputSeq === 0) {
             lastInputSeq = predictionBuffer.add(
-              Array.from(allKeys), 
+              Array.from(allKeys),
               dt
             );
-            
+
             network.sendInput(
               Array.from(allKeys),
               dt,
@@ -328,12 +379,12 @@ function GameApp() {
           }
         }
 
-        // Update camera
+        // Update camera — center on entity hitbox
         if (localEntity) {
           updateCamera(
             camera,
-            localEntity.position.x + 16,
-            localEntity.position.y + 16,
+            localEntity.position.x + localEntity.size.width / 2,
+            localEntity.position.y + localEntity.size.height / 2,
             dt
           );
         }
@@ -415,13 +466,12 @@ function GameApp() {
   }, [screen, preloadedMap, preloadedTilesets]);
 
   // Landing handlers
-  const handleCreate = useCallback((name: string) => {
+  const handleCreate = useCallback((name: string, sprite: string) => {
     const network = networkRef.current;
     network.connect(getWsUrl());
 
     network.on('instanceCreated', (msg) => {
-      network.joinInstance(msg.code, name)
-      ;
+      network.joinInstance(msg.code, name, sprite);
       setScreen('game');
     });
 
@@ -430,11 +480,11 @@ function GameApp() {
     });
 
     network.onOpen(() => {
-      network.createInstance(name);
+      network.createInstance(name, sprite);
     });
   }, []);
 
-  const handleJoin = useCallback((code: string, name: string) => {
+  const handleJoin = useCallback((code: string, name: string, sprite: string) => {
     const network = networkRef.current;
     network.connect(getWsUrl());
 
@@ -447,7 +497,7 @@ function GameApp() {
     });
 
     network.onOpen(() => {
-      network.joinInstance(code, name);
+      network.joinInstance(code, name, sprite);
     });
   }, []);
 
@@ -480,9 +530,9 @@ function GameApp() {
 
   if (screen === 'nickname') {
     return (
-      <NicknameModal onSubmit={(name) => {
+      <NicknameModal onSubmit={(name, sprite) => {
         const code = joinMatch ? joinMatch[1].toUpperCase() : '';
-        handleJoin(code, name);
+        handleJoin(code, name, sprite);
         setScreen('game');
       }} />
     );
@@ -492,21 +542,21 @@ function GameApp() {
   return (
     <>
       <canvas id="game" ref={canvasRef} className="block fixed inset-0 w-full h-full z-[1]" />
-      
+
       {/* Blurred Spawning Overlay */}
       {!isGameReady && (
         <div className="fixed inset-0 z-[2] flex flex-col items-center justify-center overflow-hidden transition-opacity duration-500">
           {/* Blurred background image */}
-          <div 
+          <div
             className="absolute inset-0 bg-cover bg-center"
-            style={{ 
+            style={{
               backgroundImage: "url('/spawnScreen.webp')",
               filter: "blur(12px) brightness(0.55)"
             }}
           />
           {/* Loading content */}
           <div className="relative z-10 flex flex-col items-center gap-6 text-center px-6">
-            <h2 
+            <h2
               className="text-3xl md:text-4xl text-white tracking-tight"
               style={{ fontFamily: "'Gilda Display', serif", fontWeight: 200 }}
             >
@@ -542,7 +592,7 @@ function GameApp() {
                   marginTop: '10px',
                 }}
               >
-                <p 
+                <p
                   style={{
                     fontSize: '12px',
                     color: 'rgba(255,255,255,0.7)',

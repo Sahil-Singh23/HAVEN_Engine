@@ -20,6 +20,8 @@ const instanceManager = new InstanceManager();
 // }
 const clients = new Map<string, WebSocket>();
 //player id mapped to sockets 
+// Temporarily store sprite chosen during createInstance flow
+const pendingSprites = new Map<string, string>();
 
 const wss = new WebSocketServer({ port: PORT });
 //creating server 
@@ -40,6 +42,10 @@ wss.on('connection', (ws) => {
       switch (msg.type) {
         case 'createInstance': {
           const code = instanceManager.createInstance();
+          // Store the sprite so we can pass it when this player joins the instance
+          if (msg.sprite) {
+            pendingSprites.set(playerId, msg.sprite);
+          }
           //create instance creates a room, adds it to instances map (code: mapInstance)of the instance manager class n return the room code 
           ws.send(JSON.stringify({ type: 'instanceCreated', code }));
           break;
@@ -47,7 +53,10 @@ wss.on('connection', (ws) => {
         
         case 'joinInstance': {
           const playerName = msg.name || playerId.slice(0, 6);
-          const success = instanceManager.joinInstance(msg.code, playerId, ws, playerName);
+          // Use sprite from joinInstance message, or from pending (createInstance flow), or default
+          const sprite = msg.sprite || pendingSprites.get(playerId) || '8D actor1-1[VS8]';
+          pendingSprites.delete(playerId);
+          const success = instanceManager.joinInstance(msg.code, playerId, ws, playerName, sprite);
           if (!success) {
             ws.send(JSON.stringify({ 
               type: 'joinFailed', 

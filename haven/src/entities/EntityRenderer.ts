@@ -1,5 +1,6 @@
 import type { AnyEntity } from './Entity';
 import type { Camera } from '../engine/Camera';
+import { drawSprite, TILE_W, TILE_H } from './SpriteRenderer';
 
 export function renderEntities(
   ctx: CanvasRenderingContext2D,
@@ -7,13 +8,12 @@ export function renderEntities(
   camera: Camera,
   names?: Map<string, string>
 ): void {
-  // Sort by Y position so lower entities draw on top (pseudo-3D Y-sort depth-ordering)
+  // Y-sort for pseudo-3D depth ordering (based on collision box bottom)
   const sorted = [...entities].sort((a, b) => {
-    // Tie-break by x position for stable sorting if y is identical
-    if (a.position.y === b.position.y) {
-      return a.position.x - b.position.x;
-    }
-    return a.position.y - b.position.y;
+    const aBottom = a.position.y + a.size.height;
+    const bBottom = b.position.y + b.size.height;
+    if (aBottom === bBottom) return a.position.x - b.position.x;
+    return aBottom - bBottom;
   });
 
   ctx.save();
@@ -21,24 +21,34 @@ export function renderEntities(
   ctx.translate(-camera.x, -camera.y);
 
   for (const entity of sorted) {
-    ctx.fillStyle = entity.color;
-    ctx.fillRect(
-      entity.position.x,
-      entity.position.y,
-      entity.size.width,
-      entity.size.height
+    // Calculate draw position:
+    // Center sprite horizontally over 12×12 hitbox
+    const drawX = entity.position.x + entity.size.width / 2 - TILE_W / 2;
+    // Align sprite feet with bottom of 12×12 hitbox
+    const drawY = entity.position.y + entity.size.height - TILE_H;
+
+    // Draw sprite via SpriteRenderer
+    drawSprite(
+      ctx,
+      entity.sprite,
+      entity.facing,
+      entity.animFrame,
+      drawX,
+      drawY,
+      TILE_W,
+      TILE_H
     );
 
-    // Draw player name above entity
+    // Player name label position (above top of visual sprite head)
     const label = names?.get(entity.id) || entity.id.slice(0, 6);
     const centerX = entity.position.x + entity.size.width / 2;
-    const labelY = entity.position.y - 4;
+    const labelY = drawY + 7;
 
     ctx.font = 'bold 5px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
 
-    // Dark outline for readability on any background
+    // Dark outline for readability
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.lineWidth = 1.5;
     ctx.strokeText(label, centerX, labelY);

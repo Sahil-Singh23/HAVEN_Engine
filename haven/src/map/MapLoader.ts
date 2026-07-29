@@ -31,8 +31,10 @@ export interface TiledMap {
   tilesets: TilesetRef[];
 }
 
+import { cachedFetch } from './AssetCache';
+
 export async function loadMap(url: string): Promise<TiledMap> {
-  const response = await fetch(url);
+  const response = await cachedFetch(url);
   if (!response.ok) throw new Error(`Failed to load map: ${response.status}`);
   return response.json();
 }

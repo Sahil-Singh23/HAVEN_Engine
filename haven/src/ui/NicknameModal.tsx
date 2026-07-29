@@ -1,28 +1,35 @@
 // src/ui/NicknameModal.tsx
 
 import { useState } from 'react';
+import { SpritePicker, PICKER_SPRITES } from './SpritePicker';
 
 const NICKNAME_KEY = 'haven-nickname';
+const SPRITE_KEY = 'haven-sprite';
 
 interface NicknameModalProps {
-  onSubmit: (name: string) => void;
+  onSubmit: (name: string, sprite: string) => void;
 }
 
 export function NicknameModal({ onSubmit }: NicknameModalProps) {
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_KEY) || '');
+  const [selectedSprite, setSelectedSprite] = useState(() => {
+    const saved = localStorage.getItem(SPRITE_KEY);
+    return saved && PICKER_SPRITES.includes(saved) ? saved : PICKER_SPRITES[0];
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const name = nickname.trim() || 'Anon';
     localStorage.setItem(NICKNAME_KEY, name);
-    onSubmit(name);
+    localStorage.setItem(SPRITE_KEY, selectedSprite);
+    onSubmit(name, selectedSprite);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-5 w-[340px] mx-4"
+        className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-5 w-[380px] mx-4"
         style={{ fontFamily: '"roobert", "roobert Fallback", sans-serif' }}
       >
         <h2 
@@ -41,6 +48,20 @@ export function NicknameModal({ onSubmit }: NicknameModalProps) {
           autoFocus
           className="w-full px-4 py-3 rounded-xl border border-gray-300 text-base outline-none focus:border-gray-500 transition text-center"
         />
+
+        {/* Sprite Picker */}
+        <div className="w-full">
+          <p 
+            className="text-xs text-gray-400 mb-2 text-center"
+            style={{ fontFamily: '"roobert", "roobert Fallback", sans-serif' }}
+          >
+            Choose your character
+          </p>
+          <SpritePicker
+            selectedSprite={selectedSprite}
+            onSelect={setSelectedSprite}
+          />
+        </div>
 
         <button
           type="submit"
