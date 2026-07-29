@@ -21,7 +21,7 @@ import { loadTileset } from './map/TilesetLoader';
 import { PredictionBuffer } from './network/PredictionBuffer';
 import { initTouchInput, type TouchInput } from './input/TouchInput';
 import type { ChatMode } from './shared/types';
-import { loadSpriteSheet, parseSpriteId } from './entities/SpriteRenderer';
+import { loadSpriteSheet } from './entities/SpriteRenderer';
 
 type Screen = 'landing' | 'nickname' | 'game';
 
