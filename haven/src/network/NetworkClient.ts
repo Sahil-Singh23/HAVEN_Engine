@@ -94,12 +94,12 @@ export class NetworkClient {
     this.ws.send(JSON.stringify(msg));
   }
 
-  createInstance(name: string): void {
-    this.send({ type: 'createInstance', name });
+  createInstance(name: string, sprite: string): void {
+    this.send({ type: 'createInstance', name, sprite });
   }
 
-  joinInstance(code: string, name: string): void {
-    this.send({ type: 'joinInstance', code, name });
+  joinInstance(code: string, name: string, sprite: string): void {
+    this.send({ type: 'joinInstance', code, name, sprite });
   }
 
   sendInput(keys: string[], dt: number, sequence: number, x: number, y: number): void {

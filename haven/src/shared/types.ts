@@ -13,6 +13,7 @@ export interface PlayerState {
   status: 'online' | 'away';
   room: string | null;
   name: string;
+  sprite: string;
 }
 
 
@@ -42,6 +43,7 @@ export interface ZoneData {
 export interface CreateInstanceMessage {
   type: 'createInstance';
   name: string;
+  sprite: string;
 }
 
 //sent by client to server to join an instance
@@ -49,6 +51,7 @@ export interface JoinInstanceMessage {
   type: 'joinInstance';
   code: string;
   name: string;
+  sprite: string;
 }
 
 //sent by server to client to join an instance

@@ -20,7 +20,8 @@ import { loadMap } from './map/MapLoader';
 import { loadTileset } from './map/TilesetLoader';
 import { PredictionBuffer } from './network/PredictionBuffer';
 import { initTouchInput, type TouchInput } from './input/TouchInput';
-import type{ ChatMode } from './shared/types';
+import type { ChatMode } from './shared/types';
+import { loadSpriteSheet, parseSpriteId } from './entities/SpriteRenderer';
 
 type Screen = 'landing' | 'nickname' | 'game';
 
@@ -37,13 +38,13 @@ const getWsUrl = () => {
   }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'ws://localhost:3001';
+    return 'ws://localhost:5010';
   }
   return `${protocol}//${window.location.host}`;
 };
 
 function GameApp() {
-  const [screen, setScreen] = useState<Screen>(pendingJoinCode ? 'game' : 'landing');
+  const [screen, setScreen] = useState<Screen>(pendingJoinCode ? 'nickname' : 'landing');
   const [chatMode, setChatMode] = useState<ChatMode>('global');
   const [uiTick, setUiTick] = useState(0);
 
@@ -57,7 +58,7 @@ function GameApp() {
       document.body.style.background = '#F9F9FB';
     }
   }, [screen]);
-  
+
   // Asset preloading states
   const [preloadedMap, setPreloadedMap] = useState<any>(null);
   const [preloadedTilesets, setPreloadedTilesets] = useState<any[]>([]);
@@ -102,8 +103,13 @@ function GameApp() {
           }
 
           if (active) {
+            setLoadProgress(96);
 
+            // Preload default sprite sheet
+            await loadSpriteSheet('8D actor1-1[VS8]').catch(() => {});
+            if (!active) return;
             setLoadProgress(98);
+
             setPreloadedMap(map);
             setPreloadedTilesets(tilesets);
             // Small delay so user sees 100% before overlay fades
@@ -143,7 +149,7 @@ function GameApp() {
 
     // Canvas setup
     const dpr = window.devicePixelRatio || 1;
-    
+
     const resize = () => {
       canvas.width = window.innerWidth * dpr;
       canvas.height = window.innerHeight * dpr;
@@ -151,7 +157,7 @@ function GameApp() {
       canvas.style.height = window.innerHeight + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
-    
+
     resize();
     window.addEventListener('resize', resize);
 
@@ -191,13 +197,17 @@ function GameApp() {
         // Populate players
         for (const [id, state] of Object.entries(msg.players)) {
           gameState.updatePlayer(id, state);
-          
+
           if (id === msg.yourId) {
-            const local = createLocalEntity(state.x, state.y);
+            const local = createLocalEntity(state.x, state.y, state.sprite);
             local.id = id;
             entityManager.add(local);
+            // Eagerly load the local player's sprite
+            loadSpriteSheet(state.sprite).catch(() => { });
           } else {
-            entityManager.add(createRemoteEntity(id, state.x, state.y));
+            entityManager.add(createRemoteEntity(id, state.x, state.y, state.sprite));
+            // Eagerly load this remote player's sprite
+            loadSpriteSheet(state.sprite).catch(() => { });
           }
         }
 
@@ -257,7 +267,9 @@ function GameApp() {
 
       network.on('playerJoined', (msg) => {
         gameState.updatePlayer(msg.player.id, msg.player);
-        entityManager.add(createRemoteEntity(msg.player.id, msg.player.x, msg.player.y));
+        entityManager.add(createRemoteEntity(msg.player.id, msg.player.x, msg.player.y, msg.player.sprite));
+        // Eagerly load joining player's sprite
+        loadSpriteSheet(msg.player.sprite).catch(() => { });
         setUiTick(t => t + 1);
       });
 
@@ -290,7 +302,7 @@ function GameApp() {
       lastTime = timestamp;
 
       const localPlayer = gameState.getLocalPlayer();
-      
+
       if (localPlayer) {
         // Merge inputs
         const touchKeys = touchInput.getKeys();
@@ -304,7 +316,7 @@ function GameApp() {
           // Update room and trigger UI updates upon zone boundary crossings
           const oldRoom = gameState.currentRoom;
           const newRoom = gameState.updateLocalRoom(
-            localEntity.position.x, 
+            localEntity.position.x,
             localEntity.position.y
           );
           if (oldRoom !== newRoom) {
@@ -314,10 +326,10 @@ function GameApp() {
           // Send input to server
           if (allKeys.size > 0 || lastInputSeq === 0) {
             lastInputSeq = predictionBuffer.add(
-              Array.from(allKeys), 
+              Array.from(allKeys),
               dt
             );
-            
+
             network.sendInput(
               Array.from(allKeys),
               dt,
@@ -328,12 +340,12 @@ function GameApp() {
           }
         }
 
-        // Update camera
+        // Update camera — center on entity hitbox
         if (localEntity) {
           updateCamera(
             camera,
-            localEntity.position.x + 16,
-            localEntity.position.y + 16,
+            localEntity.position.x + localEntity.size.width / 2,
+            localEntity.position.y + localEntity.size.height / 2,
             dt
           );
         }
@@ -415,13 +427,12 @@ function GameApp() {
   }, [screen, preloadedMap, preloadedTilesets]);
 
   // Landing handlers
-  const handleCreate = useCallback((name: string) => {
+  const handleCreate = useCallback((name: string, sprite: string) => {
     const network = networkRef.current;
     network.connect(getWsUrl());
 
     network.on('instanceCreated', (msg) => {
-      network.joinInstance(msg.code, name)
-      ;
+      network.joinInstance(msg.code, name, sprite);
       setScreen('game');
     });
 
@@ -430,11 +441,11 @@ function GameApp() {
     });
 
     network.onOpen(() => {
-      network.createInstance(name);
+      network.createInstance(name, sprite);
     });
   }, []);
 
-  const handleJoin = useCallback((code: string, name: string) => {
+  const handleJoin = useCallback((code: string, name: string, sprite: string) => {
     const network = networkRef.current;
     network.connect(getWsUrl());
 
@@ -447,7 +458,7 @@ function GameApp() {
     });
 
     network.onOpen(() => {
-      network.joinInstance(code, name);
+      network.joinInstance(code, name, sprite);
     });
   }, []);
 
@@ -480,9 +491,9 @@ function GameApp() {
 
   if (screen === 'nickname') {
     return (
-      <NicknameModal onSubmit={(name) => {
+      <NicknameModal onSubmit={(name, sprite) => {
         const code = joinMatch ? joinMatch[1].toUpperCase() : '';
-        handleJoin(code, name);
+        handleJoin(code, name, sprite);
         setScreen('game');
       }} />
     );
@@ -492,21 +503,21 @@ function GameApp() {
   return (
     <>
       <canvas id="game" ref={canvasRef} className="block fixed inset-0 w-full h-full z-[1]" />
-      
+
       {/* Blurred Spawning Overlay */}
       {!isGameReady && (
         <div className="fixed inset-0 z-[2] flex flex-col items-center justify-center overflow-hidden transition-opacity duration-500">
           {/* Blurred background image */}
-          <div 
+          <div
             className="absolute inset-0 bg-cover bg-center"
-            style={{ 
+            style={{
               backgroundImage: "url('/spawnScreen.webp')",
               filter: "blur(12px) brightness(0.55)"
             }}
           />
           {/* Loading content */}
           <div className="relative z-10 flex flex-col items-center gap-6 text-center px-6">
-            <h2 
+            <h2
               className="text-3xl md:text-4xl text-white tracking-tight"
               style={{ fontFamily: "'Gilda Display', serif", fontWeight: 200 }}
             >
@@ -542,7 +553,7 @@ function GameApp() {
                   marginTop: '10px',
                 }}
               >
-                <p 
+                <p
                   style={{
                     fontSize: '12px',
                     color: 'rgba(255,255,255,0.7)',
