@@ -10,6 +10,7 @@ interface ShareModalProps {
 export function ShareModal({ instanceCode, onClose }: ShareModalProps) {
   const [copied, setCopied] = useState(false);
   const link = `${window.location.origin}/join/${instanceCode}`;
+  const displayLink = link.replace(/^https?:\/\//, '');
 
   const handleCopy = () => {
     navigator.clipboard.writeText(link).then(() => {
@@ -31,7 +32,7 @@ export function ShareModal({ instanceCode, onClose }: ShareModalProps) {
         <p className="text-sm text-gray-500">Copy this link and share it with others:</p>
         <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2.5">
           <span className="flex-1 text-xs text-gray-600 font-mono truncate select-all">
-            {link}
+            {displayLink}
           </span>
           <button
             className={`px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all duration-150 ${

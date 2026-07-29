@@ -123,9 +123,14 @@ function GameApp() {
     }
   }, [screen]);
 
-  // Asset preloading states
-  const [preloadedMap, setPreloadedMap] = useState<any>(null);
-  const [preloadedTilesets, setPreloadedTilesets] = useState<any[]>([]);
+  // Asset preloading — stored in refs so they NEVER trigger effect re-runs.
+  // The game-loop effect must only run once per screen='game' transition;
+  // re-running it destroys the entity manager and double-registers handlers.
+  const preloadedMapRef = useRef<any>(null);
+  const preloadedTilesetsRef = useRef<any[]>([]);
+  // Callback the game-loop effect registers to be called when assets are ready.
+  const onAssetsReadyRef = useRef<(() => void) | null>(null);
+
   const [isGameReady, setIsGameReady] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
 
@@ -135,9 +140,8 @@ function GameApp() {
   const cleanupRef = useRef<(() => void) | null>(null);
   const pendingCodeRef = useRef(pendingJoinCode);
 
-  // Consume eagerly-preloaded assets when game screen activates.
-  // The assetPreloader singleton already started downloading at module
-  // load time (while user was on Landing / NicknameModal).
+  // Subscribe to the asset preloader's progress and resolution.
+  // Writes results into refs (no state), then fires the game-loop callback.
   useEffect(() => {
     if (screen !== 'game') return;
 
@@ -151,8 +155,11 @@ function GameApp() {
 
     assetPreloader.wait().then(({ map, tilesets }) => {
       if (!active) return;
-      setPreloadedMap(map);
-      setPreloadedTilesets(tilesets);
+      // Store in refs — NOT state — so the game-loop effect is not re-triggered.
+      preloadedMapRef.current = map;
+      preloadedTilesetsRef.current = tilesets;
+      // Fire the game-loop's asset-ready callback (if it has registered one).
+      onAssetsReadyRef.current?.();
       // Small delay so user sees 100% before overlay fades
       setTimeout(() => {
         if (active) setLoadProgress(100);
@@ -167,7 +174,11 @@ function GameApp() {
     };
   }, [screen]);
 
-  // Start game loop when entering game screen
+  // Start game loop when entering game screen.
+  // CRITICAL: depends ONLY on [screen]. Preloaded assets are read from refs,
+  // not React state, so this effect runs exactly ONCE per screen='game'
+  // transition. Re-running it would destroy the entity manager (which already
+  // has entities from the server init message) and double-register handlers.
   useEffect(() => {
     if (screen !== 'game') {
       if (cleanupRef.current) {
@@ -200,14 +211,18 @@ function GameApp() {
     resize();
     window.addEventListener('resize', resize);
 
-    // Game systems
+    // Game systems — assigned once assets are ready (see initAssets below)
     let renderer: MapRenderer;
     let collisionGrid: ReturnType<typeof buildCollisionGrid>;
-    let entityManager: EntityManager;
     let predictionBuffer: PredictionBuffer;
-    let camera: Camera;
+    let camera: Camera = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight, zoom: 2.1 };
     let touchInput: TouchInput;
     let animationId: number;
+
+    // entityManager lives for the entire screen='game' session.
+    // It MUST be created here, before any network handler fires, so that
+    // 'init' and 'state' messages can populate it immediately.
+    const entityManager = new EntityManager();
 
     // Input
     const keys = new Set<string>();
@@ -226,52 +241,52 @@ function GameApp() {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
 
-    // Network handlers
-    const setupNetwork = () => {
-      network.on('init', (msg) => {
-        gameState.setLocalId(msg.yourId);
-        gameState.setInstanceCode(msg.code);
-        gameState.setZones(msg.zones);
+    // ── Network handlers ────────────────────────────────────────────────────
+    // Registered immediately — BEFORE assets finish loading — so no server
+    // messages are ever dropped while the map is still being parsed.
+    network.on('init', (msg) => {
+      gameState.setLocalId(msg.yourId);
+      gameState.setInstanceCode(msg.code);
+      gameState.setZones(msg.zones);
 
-        // Populate players
-        for (const [id, state] of Object.entries(msg.players)) {
-          gameState.updatePlayer(id, state);
+      // Populate players into the already-live entityManager
+      for (const [id, state] of Object.entries(msg.players)) {
+        gameState.updatePlayer(id, state);
 
-          if (id === msg.yourId) {
-            const local = createLocalEntity(state.x, state.y, state.sprite);
-            local.id = id;
-            entityManager.add(local);
-            // Eagerly load the local player's sprite
-            loadSpriteSheet(state.sprite).catch(() => { });
-          } else {
-            entityManager.add(createRemoteEntity(id, state.x, state.y, state.sprite));
-            // Eagerly load this remote player's sprite
-            loadSpriteSheet(state.sprite).catch(() => { });
-          }
+        if (id === msg.yourId) {
+          const local = createLocalEntity(state.x, state.y, state.sprite);
+          local.id = id;
+          entityManager.add(local);
+          loadSpriteSheet(state.sprite).catch(() => { });
+        } else {
+          entityManager.add(createRemoteEntity(id, state.x, state.y, state.sprite));
+          loadSpriteSheet(state.sprite).catch(() => { });
         }
+      }
 
-        // Load chat history
-        for (const chatMsg of msg.chatHistory) {
-          gameState.addChatMessage(chatMsg);
+      // Load chat history
+      for (const chatMsg of msg.chatHistory) {
+        gameState.addChatMessage(chatMsg);
+      }
+      // NOTE: setScreen('game') is NOT called here — it was already called
+      // by handleCreate/handleJoin before the init message arrived.
+    });
+
+    network.on('state', (msg) => {
+      // Feed positions into each remote entity's interpolation buffer
+      for (const [id, state] of Object.entries(msg.players)) {
+        gameState.updatePlayer(id, state);
+        const entity = entityManager.get(id);
+        if (entity && entity.type === 'remote') {
+          entity.interpolationBuffer.add(
+            { x: state.x, y: state.y },
+            msg.tick
+          );
         }
+      }
 
-        setScreen('game');
-      });
-
-      network.on('state', (msg) => {
-        // Update remote players
-        for (const [id, state] of Object.entries(msg.players)) {
-          gameState.updatePlayer(id, state);
-          const entity = entityManager.get(id);
-          if (entity && entity.type === 'remote') {
-            entity.interpolationBuffer.add(
-              { x: state.x, y: state.y },
-              msg.tick
-            );
-          }
-        }
-
-        // Reconcile local player
+      // Reconcile local player — only once collision/prediction are ready
+      if (collisionGrid && predictionBuffer) {
         const localEntity = entityManager.getLocal();
         if (localEntity && localEntity.type === 'local' && msg.local) {
           const corrected = predictionBuffer.reconcile(
@@ -289,48 +304,43 @@ function GameApp() {
           const errorDist = Math.sqrt(errorX * errorX + errorY * errorY);
 
           if (errorDist > 10) {
-            // Large error: snap
             localEntity.position.x = corrected.x;
             localEntity.position.y = corrected.y;
           } else if (errorDist > 0.1) {
-            // Small error: smooth
             localEntity.position.x += errorX * 0.3;
             localEntity.position.y += errorY * 0.3;
           }
-          // Tiny error: ignore
         }
+      }
 
-        // Trigger UI redraw for remote players' movements and local player reconciliation
+      setUiTick(t => t + 1);
+    });
+
+    network.on('playerJoined', (msg) => {
+      gameState.updatePlayer(msg.player.id, msg.player);
+      entityManager.add(createRemoteEntity(msg.player.id, msg.player.x, msg.player.y, msg.player.sprite));
+      loadSpriteSheet(msg.player.sprite).catch(() => { });
+      setUiTick(t => t + 1);
+    });
+
+    network.on('playerLeft', (msg) => {
+      gameState.removePlayer(msg.id);
+      entityManager.remove(msg.id);
+      setUiTick(t => t + 1);
+    });
+
+    network.on('statusChanged', (msg) => {
+      const player = gameState.players.get(msg.id);
+      if (player) {
+        player.status = msg.status;
         setUiTick(t => t + 1);
-      });
+      }
+    });
 
-      network.on('playerJoined', (msg) => {
-        gameState.updatePlayer(msg.player.id, msg.player);
-        entityManager.add(createRemoteEntity(msg.player.id, msg.player.x, msg.player.y, msg.player.sprite));
-        // Eagerly load joining player's sprite
-        loadSpriteSheet(msg.player.sprite).catch(() => { });
-        setUiTick(t => t + 1);
-      });
-
-      network.on('playerLeft', (msg) => {
-        gameState.removePlayer(msg.id);
-        entityManager.remove(msg.id);
-        setUiTick(t => t + 1);
-      });
-
-      network.on('statusChanged', (msg) => {
-        const player = gameState.players.get(msg.id);
-        if (player) {
-          player.status = msg.status;
-          setUiTick(t => t + 1);
-        }
-      });
-
-      network.on('chat', (msg) => {
-        gameState.addChatMessage(msg.message);
-        setUiTick(t => t + 1);
-      });
-    };
+    network.on('chat', (msg) => {
+      gameState.addChatMessage(msg.message);
+      setUiTick(t => t + 1);
+    });
 
     // Game loop
     let lastTime = 0;
@@ -340,9 +350,15 @@ function GameApp() {
       const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
       lastTime = timestamp;
 
+      // Skip full update/render until the map renderer is ready
+      if (!renderer) {
+        animationId = requestAnimationFrame(loop);
+        return;
+      }
+
       const localPlayer = gameState.getLocalPlayer();
 
-      if (localPlayer) {
+      if (localPlayer && touchInput && collisionGrid && predictionBuffer) {
         // Merge inputs
         const touchKeys = touchInput.getKeys();
         const allKeys = new Set([...keys, ...touchKeys]);
@@ -393,7 +409,7 @@ function GameApp() {
       // Update remote entities with interpolation
       const now = Date.now();
       for (const remote of entityManager.getRemotes()) {
-        updateRemoteEntity(remote, now);
+        updateRemoteEntity(remote, now, dt);
       }
 
       camera.width = window.innerWidth;
@@ -414,34 +430,34 @@ function GameApp() {
       animationId = requestAnimationFrame(loop);
     };
 
-    // Initialize
-    const init = async () => {
+    // Start the render loop immediately; it idles until renderer is assigned
+    animationId = requestAnimationFrame(loop);
+
+    // ── Asset initialization ─────────────────────────────────────────────────
+    // Reads from refs (not state) — calling this never triggers a re-render
+    // or re-runs this effect. Called either immediately (if assets are already
+    // done) or via the onAssetsReadyRef callback when they finish.
+    const initAssets = () => {
+      const map = preloadedMapRef.current;
+      const tilesets = preloadedTilesetsRef.current;
+      if (!map || !tilesets || tilesets.length === 0) return;
+
       try {
-        if (!preloadedMap || !preloadedTilesets || preloadedTilesets.length === 0) {
-          return;
-        }
-
-        const map = preloadedMap;
-        const tilesets = preloadedTilesets;
-
         renderer = new MapRenderer(map, tilesets);
         collisionGrid = buildCollisionGrid(map);
-        entityManager = new EntityManager();
         predictionBuffer = new PredictionBuffer();
-        camera = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight, zoom: 2.1 };
         touchInput = initTouchInput();
-
-        setupNetwork();
-
-        // Start loop
-        animationId = requestAnimationFrame(loop);
         setIsGameReady(true);
       } catch (err) {
-        console.error('Failed to initialize game:', err);
+        console.error('Failed to initialize game assets:', err);
       }
     };
 
-    init();
+    // Register so the preloader effect can call us when assets finish
+    onAssetsReadyRef.current = initAssets;
+
+    // If assets were already loaded before we got here, init immediately
+    initAssets();
 
     // Heartbeat
     const heartbeatInterval = setInterval(() => {
@@ -454,6 +470,7 @@ function GameApp() {
       window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationId);
       clearInterval(heartbeatInterval);
+      onAssetsReadyRef.current = null;
       if (touchInput) touchInput.destroy();
     };
 
@@ -463,19 +480,16 @@ function GameApp() {
         cleanupRef.current = null;
       }
     };
-  }, [screen, preloadedMap, preloadedTilesets]);
+  }, [screen]);
 
-  // Landing handlers
   const handleCreate = useCallback((name: string, sprite: string) => {
     const network = networkRef.current;
     network.connect(getWsUrl());
 
     network.on('instanceCreated', (msg) => {
       network.joinInstance(msg.code, name, sprite);
-      setScreen('game');
-    });
-
-    network.on('init', () => {
+      // Switch to game screen so the game-loop effect starts and registers
+      // its on('init') handler before the server's init message is delivered.
       setScreen('game');
     });
 
@@ -488,16 +502,16 @@ function GameApp() {
     const network = networkRef.current;
     network.connect(getWsUrl());
 
-    network.on('init', () => {
-      setScreen('game');
-    });
-
     network.on('joinFailed', (msg) => {
       alert(msg.reason);
     });
 
     network.onOpen(() => {
       network.joinInstance(code, name, sprite);
+      // Switch to game AFTER the socket is open — this mirrors handleCreate's
+      // pattern and guarantees the game-loop effect's on('init') handler is
+      // registered before the server's init reply can arrive.
+      setScreen('game');
     });
   }, []);
 
@@ -519,8 +533,9 @@ function GameApp() {
     networkRef.current.disconnect();
     gameStateRef.current.reset();
     setIsGameReady(false);
-    setPreloadedMap(null);
-    setPreloadedTilesets([]);
+    // Clear asset refs so initAssets runs fresh on next join
+    preloadedMapRef.current = null;
+    preloadedTilesetsRef.current = [];
     setScreen('landing');
   }, []);
 
@@ -532,8 +547,9 @@ function GameApp() {
     return (
       <NicknameModal onSubmit={(name, sprite) => {
         const code = joinMatch ? joinMatch[1].toUpperCase() : '';
+        // setScreen('game') is called inside handleJoin's network.onOpen —
+        // same pattern as handleCreate — so we do NOT call it here.
         handleJoin(code, name, sprite);
-        setScreen('game');
       }} />
     );
   }

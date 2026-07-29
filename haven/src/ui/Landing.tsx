@@ -77,7 +77,7 @@ export function Landing({ onCreate }: LandingProps) {
             </p>
 
             {/* Nickname + Sprite Picker + CTA Section */}
-            <div className="flex flex-col gap-2 items-start">
+            <div className="flex flex-col gap-2 items-start w-full max-w-xl">
               {/* Sprite Picker */}
               <SpritePicker
                 selectedSprite={selectedSprite}

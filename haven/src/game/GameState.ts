@@ -69,10 +69,12 @@ export class GameState {
   }
 
   addChatMessage(msg: ChatMessage): void {
-    this.chatMessages.push(msg);
-    if (this.chatMessages.length > 100) {
-      this.chatMessages.shift();
-    }
+    // Create a new array reference so React's prop equality check detects the
+    // change and re-renders ChatPanel. Mutating in-place (push) keeps the same
+    // reference — uiTick re-renders GameOverlay but ChatPanel still sees the
+    // same array object and bails out of diffing.
+    const next = [...this.chatMessages, msg];
+    this.chatMessages = next.length > 100 ? next.slice(-100) : next;
   }
 
   updateLocalRoom(x: number, y: number): string | null {
