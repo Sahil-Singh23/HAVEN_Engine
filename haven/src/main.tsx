@@ -43,6 +43,70 @@ const getWsUrl = () => {
   return `${protocol}//${window.location.host}`;
 };
 
+// ── Eager asset preloader ──────────────────────────────────────────────────
+// Starts downloading map + tileset assets immediately when the JS bundle
+// loads (on Landing page or NicknameModal), so they're ready by the time
+// the user clicks Join/Create.
+const assetPreloader = (() => {
+  type Listener = (progress: number) => void;
+  let result: { map: any; tilesets: any[] } | null = null;
+  let error: Error | null = null;
+  let progress = 0;
+  const listeners = new Set<Listener>();
+
+  const notify = () => listeners.forEach(l => l(progress));
+
+  const promise = (async () => {
+    const map = await loadMap('/maps/final_map.tmj');
+    progress = 10;
+    notify();
+
+    const validTilesets = map.tilesets.filter((ts: any) => ts.source);
+    const totalTilesets = validTilesets.length;
+    const tilesets: any[] = [];
+
+    for (let i = 0; i < validTilesets.length; i++) {
+      const ts = validTilesets[i];
+      const loaded = await loadTileset(ts.source, '/maps/');
+      (loaded as any).firstgid = ts.firstgid;
+      tilesets.push(loaded);
+      progress = 10 + Math.round(((i + 1) / totalTilesets) * 85);
+      notify();
+    }
+
+    progress = 96;
+    notify();
+
+    // Preload default sprite sheet
+    await loadSpriteSheet('8D actor1-1[VS8]').catch(() => { });
+    progress = 98;
+    notify();
+
+    result = { map, tilesets };
+    return result;
+  })().catch(err => {
+    error = err;
+    console.error('Asset preloader failed:', err);
+    throw err;
+  });
+
+  return {
+    /** Already-resolved result (null if still loading) */
+    getResult: () => result,
+    getProgress: () => progress,
+    getError: () => error,
+    /** Await the full preload */
+    wait: () => promise,
+    /** Subscribe to progress updates (0–98). Returns unsubscribe fn. */
+    onProgress: (fn: Listener) => {
+      listeners.add(fn);
+      // Immediately fire current progress so late subscribers catch up
+      fn(progress);
+      return () => { listeners.delete(fn); };
+    },
+  };
+})();
+
 function GameApp() {
   const [screen, setScreen] = useState<Screen>(pendingJoinCode ? 'nickname' : 'landing');
   const [chatMode, setChatMode] = useState<ChatMode>('global');
@@ -71,61 +135,36 @@ function GameApp() {
   const cleanupRef = useRef<(() => void) | null>(null);
   const pendingCodeRef = useRef(pendingJoinCode);
 
-  // Preload map assets when the game screen starts
+  // Consume eagerly-preloaded assets when game screen activates.
+  // The assetPreloader singleton already started downloading at module
+  // load time (while user was on Landing / NicknameModal).
   useEffect(() => {
-    if (screen === 'game') {
-      setIsGameReady(false);
-      setLoadProgress(0);
-      let active = true;
-      const preload = async () => {
-        try {
+    if (screen !== 'game') return;
 
-          const map = await loadMap('/maps/final_map.tmj');
-          if (!active) return;
-          setLoadProgress(10);
+    setIsGameReady(false);
+    let active = true;
 
-          const validTilesets = map.tilesets.filter((ts: any) => ts.source);
-          const totalTilesets = validTilesets.length;
-          const tilesets = [];
+    // Subscribe to progress updates from the preloader
+    const unsub = assetPreloader.onProgress((p) => {
+      if (active) setLoadProgress(p);
+    });
 
-          for (let i = 0; i < validTilesets.length; i++) {
-            const ts = validTilesets[i];
-            if (!active) return;
+    assetPreloader.wait().then(({ map, tilesets }) => {
+      if (!active) return;
+      setPreloadedMap(map);
+      setPreloadedTilesets(tilesets);
+      // Small delay so user sees 100% before overlay fades
+      setTimeout(() => {
+        if (active) setLoadProgress(100);
+      }, 200);
+    }).catch(err => {
+      console.error('Failed to preload map assets:', err);
+    });
 
-            const loaded = await loadTileset(ts.source, '/maps/');
-            (loaded as any).firstgid = ts.firstgid;
-            tilesets.push(loaded);
-            if (active) {
-              // Map JSON = 10%, tilesets share remaining 90%
-              const tilesetProgress = 10 + Math.round(((i + 1) / totalTilesets) * 85);
-              setLoadProgress(tilesetProgress);
-            }
-          }
-
-          if (active) {
-            setLoadProgress(96);
-
-            // Preload default sprite sheet
-            await loadSpriteSheet('8D actor1-1[VS8]').catch(() => {});
-            if (!active) return;
-            setLoadProgress(98);
-
-            setPreloadedMap(map);
-            setPreloadedTilesets(tilesets);
-            // Small delay so user sees 100% before overlay fades
-            await new Promise(r => setTimeout(r, 200));
-            if (active) setLoadProgress(100);
-          }
-        } catch (err) {
-          console.error("Failed to preload map assets:", err);
-
-        }
-      };
-      preload();
-      return () => {
-        active = false;
-      };
-    }
+    return () => {
+      active = false;
+      unsub();
+    };
   }, [screen]);
 
   // Start game loop when entering game screen

@@ -39,10 +39,10 @@ export function renderEntities(
       TILE_H
     );
 
-    // Player name label position (above top of visual sprite)
+    // Player name label position (above top of visual sprite head)
     const label = names?.get(entity.id) || entity.id.slice(0, 6);
     const centerX = entity.position.x + entity.size.width / 2;
-    const labelY = drawY - 1;
+    const labelY = drawY + 7;
 
     ctx.font = 'bold 5px sans-serif';
     ctx.textAlign = 'center';

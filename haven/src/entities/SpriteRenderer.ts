@@ -40,6 +40,8 @@ const DIR_ROW: Record<FacingDirection, number> = {
 // Whether a direction uses the diagonal column block (cols 3–5)
 const DIAGONAL_DIRS = new Set<FacingDirection>(['downLeft', 'downRight', 'upLeft', 'upRight']);
 
+import { cachedLoadImage } from '../map/AssetCache';
+
 // ── Sheet cache ────────────────────────────────────────────────────────────
 const sheetCache = new Map<string, HTMLImageElement>();
 
@@ -63,24 +65,22 @@ export function parseSpriteId(spriteId: string): { sheetId: string; charIndex: n
 
 /**
  * Preload a sprite sheet by spriteId or sheetId (e.g. "01-0" -> /sprites/01.png or "8D actor1-1[VS8]").
+ * Uses the Cache API so sheets survive page reloads without re-downloading.
  */
 export function loadSpriteSheet(input: string): Promise<HTMLImageElement> {
   const { sheetId } = parseSpriteId(input);
-  const cleanId = sheetId.endsWith('.png') ? sheetId.slice(0, -4) : sheetId;
+  const cleanId = sheetId.endsWith('.png') || sheetId.endsWith('.webp')
+    ? sheetId.slice(0, sheetId.lastIndexOf('.'))
+    : sheetId;
 
   if (sheetCache.has(cleanId)) {
     return Promise.resolve(sheetCache.get(cleanId)!);
   }
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.src = `/sprites/${cleanId}.png`;
-    img.onload = () => {
-      sheetCache.set(input, img);
-      sheetCache.set(sheetId, img);
-      sheetCache.set(cleanId, img);
-      resolve(img);
-    };
-    img.onerror = () => reject(new Error(`Failed to load sprite sheet: ${cleanId}`));
+  return cachedLoadImage(`/sprites/${cleanId}.webp`).then(img => {
+    sheetCache.set(input, img);
+    sheetCache.set(sheetId, img);
+    sheetCache.set(cleanId, img);
+    return img;
   });
 }
 
@@ -89,7 +89,9 @@ export function loadSpriteSheet(input: string): Promise<HTMLImageElement> {
  */
 export function getSpriteSheet(input: string): HTMLImageElement | undefined {
   const { sheetId } = parseSpriteId(input);
-  const cleanId = sheetId.endsWith('.png') ? sheetId.slice(0, -4) : sheetId;
+  const cleanId = sheetId.endsWith('.png') || sheetId.endsWith('.webp')
+    ? sheetId.slice(0, sheetId.lastIndexOf('.'))
+    : sheetId;
   return sheetCache.get(input) || sheetCache.get(sheetId) || sheetCache.get(cleanId);
 }
 

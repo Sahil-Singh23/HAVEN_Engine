@@ -7,13 +7,15 @@ export interface LoadedTileset {
   name: string;
 }
 
+import { cachedFetch, cachedLoadImage } from './AssetCache';
+
 export async function loadTileset(
   sourcePath: string,
   baseUrl: string = '/maps/'
 ): Promise<LoadedTileset> {
   const jsonPath = baseUrl + sourcePath;
   
-  const response = await fetch(jsonPath);
+  const response = await cachedFetch(jsonPath);
   if (!response.ok) throw new Error(`Failed to load tileset: ${jsonPath}`);
   
   const data = await response.json();
@@ -32,13 +34,7 @@ export async function loadTileset(
     imagePath = baseUrl + folder + filename;
   }
   
-  const image = new Image();
-  image.src = imagePath;
-  
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = () => reject(new Error(`Failed to load image: ${imagePath}`));
-  });
+  const image = await cachedLoadImage(imagePath);
   
   return {
     image,
