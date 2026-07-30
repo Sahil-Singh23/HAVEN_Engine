@@ -53,7 +53,7 @@ export function createLocalEntity(x: number, y: number, spriteId = '01-0'): Loca
     type: 'local',
     position: { x, y },
     velocity: { x: 0, y: 0 },
-    size: { width: 12, height: 16 },
+    size: { width: 12, height: 12 },
     color: '#510505',
     speed: 96, // 96 pixels per second, or 6 tiles per sec of 16 px per tile
     spriteId,
@@ -69,7 +69,7 @@ export function createRemoteEntity(id: string, x: number, y: number, spriteId = 
     type: 'remote',
     position: { x, y },
     velocity: { x: 0, y: 0 },
-    size: { width: 12, height: 16 },
+    size: { width: 12, height: 12 },
     color: '#ff4444',
     speed: 96,
     spriteId,
