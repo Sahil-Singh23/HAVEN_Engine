@@ -7,13 +7,11 @@ export class NetworkClient {
   private handlers: Partial<Record<ServerMessage['type'], ((data: any) => void)[]>> = {};
   private onOpenHandlers: (() => void)[] = [];
   private initMessage: ServerMessage | null = null;
-  private messageQueue: ServerMessage[] = [];
-  private isDelivering = false;
 
   connect(url: string): void {
+    this.handlers = {};
+    this.onOpenHandlers = [];
     this.initMessage = null;
-    this.messageQueue = [];
-    this.isDelivering = false;
     this.ws = new WebSocket(url);
     
     this.ws.onopen = () => {
@@ -27,12 +25,6 @@ export class NetworkClient {
         
         if (msg.type === 'init') {
           this.initMessage = msg;
-        }
-
-        // Buffer all non-init messages received after init, until delivery starts
-        if (this.initMessage && msg.type !== 'init' && !this.isDelivering) {
-          this.messageQueue.push(msg);
-          return;
         }
 
         const handlers = this.handlers[msg.type] || [];
@@ -63,18 +55,6 @@ export class NetworkClient {
     // If an init message is already cached, fire the handler immediately
     if (type === 'init' && this.initMessage) {
       handler(this.initMessage as any);
-
-      // Once the gameplay init handler is registered, flush any buffered messages
-      if (!this.isDelivering) {
-        this.isDelivering = true;
-        
-        const tempQueue = [...this.messageQueue];
-        this.messageQueue = [];
-        tempQueue.forEach(msg => {
-          const msgHandlers = this.handlers[msg.type] || [];
-          msgHandlers.forEach(h => h(msg as any));
-        });
-      }
     }
   }
 
@@ -126,7 +106,5 @@ export class NetworkClient {
     this.handlers = {};
     this.onOpenHandlers = [];
     this.initMessage = null;
-    this.messageQueue = [];
-    this.isDelivering = false;
   }
 }

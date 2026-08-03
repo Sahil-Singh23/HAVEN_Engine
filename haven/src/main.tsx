@@ -40,7 +40,7 @@ const getWsUrl = () => {
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return 'ws://localhost:5010';
   }
-  return `${protocol}//${window.location.host}`;
+  return `${protocol}//${window.location.hostname}:5010`;
 };
 
 // ── Eager asset preloader ──────────────────────────────────────────────────
@@ -268,20 +268,29 @@ function GameApp() {
       for (const chatMsg of msg.chatHistory) {
         gameState.addChatMessage(chatMsg);
       }
-      // NOTE: setScreen('game') is NOT called here — it was already called
-      // by handleCreate/handleJoin before the init message arrived.
+
+      // Ensure screen transitions to game when init arrives
+      setScreen('game');
     });
 
     network.on('state', (msg) => {
       // Feed positions into each remote entity's interpolation buffer
       for (const [id, state] of Object.entries(msg.players)) {
         gameState.updatePlayer(id, state);
-        const entity = entityManager.get(id);
-        if (entity && entity.type === 'remote') {
-          entity.interpolationBuffer.add(
-            { x: state.x, y: state.y },
-            msg.tick
-          );
+
+        if (id !== gameState.localId) {
+          let entity = entityManager.get(id);
+          if (!entity) {
+            entity = createRemoteEntity(id, state.x, state.y, state.sprite);
+            entityManager.add(entity);
+            loadSpriteSheet(state.sprite).catch(() => { });
+          }
+          if (entity && entity.type === 'remote') {
+            entity.interpolationBuffer.add(
+              { x: state.x, y: state.y },
+              Date.now()
+            );
+          }
         }
       }
 
@@ -488,8 +497,10 @@ function GameApp() {
 
     network.on('instanceCreated', (msg) => {
       network.joinInstance(msg.code, name, sprite);
-      // Switch to game screen so the game-loop effect starts and registers
-      // its on('init') handler before the server's init message is delivered.
+      setScreen('game');
+    });
+
+    network.on('init', () => {
       setScreen('game');
     });
 
@@ -502,15 +513,16 @@ function GameApp() {
     const network = networkRef.current;
     network.connect(getWsUrl());
 
+    network.on('init', () => {
+      setScreen('game');
+    });
+
     network.on('joinFailed', (msg) => {
       alert(msg.reason);
     });
 
     network.onOpen(() => {
       network.joinInstance(code, name, sprite);
-      // Switch to game AFTER the socket is open — this mirrors handleCreate's
-      // pattern and guarantees the game-loop effect's on('init') handler is
-      // registered before the server's init reply can arrive.
       setScreen('game');
     });
   }, []);
